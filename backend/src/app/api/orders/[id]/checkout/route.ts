@@ -10,6 +10,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (!order) return NextResponse.json({ error: "Không tìm thấy đơn" }, { status: 404, headers: corsHeaders() })
 
   if (complete) {
+    const paidAmount = receivedAmount == null ? order.finalAmount : Number(receivedAmount)
+    if (!Number.isFinite(paidAmount) || paidAmount < order.finalAmount) {
+      return NextResponse.json({ error: "Số tiền nhận phải lớn hơn hoặc bằng tổng tiền hóa đơn" }, { status: 400, headers: corsHeaders() })
+    }
     const invoice = order.invoice ?? await prisma.invoice.create({
       data: {
         invoiceCode: `INV-${order.id.slice(-8).toUpperCase()}`,
@@ -31,7 +35,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         invoiceId: invoice.id,
         orderId: order.id,
         method: paymentMethod ?? "CASH",
-        amount: receivedAmount ? Number(receivedAmount) : order.finalAmount,
+        amount: paidAmount,
         status: "SUCCESS",
         paidAt: new Date(),
       },

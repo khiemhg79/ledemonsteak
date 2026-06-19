@@ -46,7 +46,7 @@ export default function TableGrid({ tables, onSelect, onStatusChange }: TableGri
             value={table.status}
             onChange={(e) => onStatusChange(table.id, e.target.value as TableStatus)}
           >
-            {statusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            {statusOptions.map((option) => <option key={option.value} value={option.value} disabled={option.value === "EMPTY" && table.status !== "EMPTY"}>{option.label}</option>)}
           </select>
         </article>
       ))}

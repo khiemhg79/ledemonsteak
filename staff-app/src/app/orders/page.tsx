@@ -1,15 +1,19 @@
 "use client"
 
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { useEffect, useMemo, useState } from "react"
 import OrderCard from "@/components/orders/OrderCard"
 import { apiGet, apiPatch } from "@/lib/api"
+import { useAuth } from "@/store/auth"
 
 type ViewMode = "orders" | "items"
 
 const money = (value: number) => value.toLocaleString("vi-VN") + "đ"
 
 export default function OrdersPage() {
+  const router = useRouter()
+  const logout = useAuth((state) => state.logout)
   const [orders, setOrders] = useState<any[]>([])
   const [viewMode, setViewMode] = useState<ViewMode>("orders")
   const [loading, setLoading] = useState(false)
@@ -43,7 +47,7 @@ export default function OrdersPage() {
           <h1 className="text-xl font-black">Le Monde Steak</h1>
           <div className="flex items-center gap-4">
             <span className="text-sm font-semibold">Xin chào, staff</span>
-            <button className="rounded-lg bg-white px-5 py-2 text-sm font-black text-[#E94713]">Đăng xuất</button>
+            <button className="rounded-lg bg-white px-5 py-2 text-sm font-black text-[#E94713]" onClick={() => { logout(); router.push("/login") }}>Đăng xuất</button>
           </div>
         </div>
       </header>
