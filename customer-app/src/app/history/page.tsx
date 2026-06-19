@@ -11,14 +11,15 @@ export default function HistoryPage() {
   const [orders, setOrders] = useState<any[]>([])
 
   useEffect(() => {
-    apiGet(`/api/orders${tableId ? `?tableId=${tableId}&status=COMPLETED` : "?status=COMPLETED"}`).then(setOrders).catch(() => setOrders([]))
+    if (!tableId) { setOrders([]); return }
+    apiGet(`/api/orders?tableId=${tableId}&status=ALL`).then(setOrders).catch(() => setOrders([]))
   }, [tableId])
 
   return (
     <main className="min-h-screen bg-gray-50 p-4">
       <h1 className="text-xl font-bold text-gray-900">Lịch sử đặt món</h1>
       <div className="mt-4 space-y-3">
-        {orders.length === 0 && <div className="rounded-lg bg-white p-6 text-center text-sm text-gray-500">Chưa có đơn hàng hoàn thành.</div>}
+        {orders.length === 0 && <div className="rounded-lg bg-white p-6 text-center text-sm text-gray-500">Chưa có lịch sử đặt món.</div>}
         {orders.map((order) => (
           <div key={order.id} className="rounded-xl bg-white p-4 shadow-sm">
             <div className="flex justify-between">

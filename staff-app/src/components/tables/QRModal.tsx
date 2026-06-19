@@ -16,7 +16,7 @@ export default function QRModal({ table, onClose }: QRModalProps) {
     setError("")
     apiGet(`/api/tables/${table.id}/qr`)
       .then((data) => setCustomerUrl(data.url))
-      .catch(() => setError("Không xác định được IP Wi-Fi. Hãy kiểm tra backend đang chạy."))
+      .catch((err) => setError(err instanceof Error ? err.message : "Không tạo được mã QR. Vui lòng thử lại."))
   }, [table])
 
   if (!table) return null

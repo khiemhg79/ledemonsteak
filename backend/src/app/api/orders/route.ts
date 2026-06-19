@@ -77,8 +77,8 @@ export async function GET(req: NextRequest) {
   const status  = req.nextUrl.searchParams.get("status")
   const where: any = {}
   if (tableId) where.tableId = tableId
-  if (status) where.status = status
-  else where.status = { in: ["PENDING", "CONFIRMED"] }
+  if (status && status !== "ALL") where.status = status
+  else if (!status) where.status = { in: ["PENDING", "CONFIRMED"] }
   const orders = await prisma.order.findMany({
     where,
     include: { details: { include: { item: true, combo: true } }, table: true },

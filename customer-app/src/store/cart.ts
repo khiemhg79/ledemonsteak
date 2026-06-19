@@ -14,6 +14,7 @@ interface CartStore {
   items: CartItem[]
   hydrate: () => void
   setTableId: (id: string) => void
+  clearTableId: () => void
   addItem: (item: Omit<CartItem, "quantity">) => void
   removeItem: (id: string) => void
   updateQty: (id: string, qty: number) => void
@@ -30,7 +31,11 @@ export const useCart = create<CartStore>((set, get) => ({
   },
   setTableId: (id) => {
     if (typeof window !== "undefined") localStorage.setItem("tableId", id)
-    set({ tableId: id })
+    set((state) => ({ tableId: id, items: state.tableId && state.tableId !== id ? [] : state.items }))
+  },
+  clearTableId: () => {
+    if (typeof window !== "undefined") localStorage.removeItem("tableId")
+    set({ tableId: null, items: [] })
   },
   addItem: (item) => {
     const exists = get().items.find((i) => i.id === item.id)

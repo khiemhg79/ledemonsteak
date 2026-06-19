@@ -38,7 +38,7 @@ export default function HomePage() {
   const [error, setError] = useState("")
   const [tables, setTables] = useState<RestaurantTable[]>([])
   const [tableError, setTableError] = useState("")
-  const { tableId, setTableId, items, hydrate: hydrateCart } = useCart()
+  const { tableId, setTableId, clearTableId, items, hydrate: hydrateCart } = useCart()
   const user = useAuth((s) => s.user)
   const logout = useAuth((s) => s.logout)
   const hydrateAuth = useAuth((s) => s.hydrate)
@@ -48,8 +48,7 @@ export default function HomePage() {
     hydrateCart()
     const scannedTableId = new URLSearchParams(window.location.search).get("tableId")
     setQrTableId(scannedTableId)
-    if (scannedTableId) setTableId(scannedTableId)
-  }, [hydrateAuth, hydrateCart, setTableId])
+  }, [hydrateAuth, hydrateCart])
 
   useEffect(() => {
     setLoading(true)
@@ -60,15 +59,25 @@ export default function HomePage() {
         setDishes(menu.dishes ?? [])
         setCombos(menu.combos ?? [])
         setTables(tableList ?? [])
-        if (qrTableId && !(tableList ?? []).some((table: RestaurantTable) => table.id === qrTableId)) {
-          setTableError("Mã QR bàn không hợp lệ. Vui lòng quét lại mã tại bàn.")
+        const availableTables = tableList ?? []
+        if (qrTableId) {
+          if (availableTables.some((table: RestaurantTable) => table.id === qrTableId)) {
+            setTableId(qrTableId)
+            setTableError("")
+          } else {
+            clearTableId()
+            setTableError("Mã QR bàn không hợp lệ. Vui lòng quét lại mã tại bàn.")
+          }
+        } else if (tableId && !availableTables.some((table: RestaurantTable) => table.id === tableId)) {
+          clearTableId()
+          setTableError("Bàn đã lưu không còn hoạt động. Vui lòng quét lại mã QR tại bàn.")
         } else {
           setTableError("")
         }
       })
       .catch((err) => setError(err.message || "Không tải được thực đơn."))
       .finally(() => setLoading(false))
-  }, [qrTableId])
+  }, [qrTableId, tableId, setTableId, clearTableId])
 
   const currentTable = tables.find((table) => table.id === tableId)
 
@@ -116,7 +125,10 @@ export default function HomePage() {
             <span className="mt-1 flex h-8 w-8 items-center justify-center rounded-full bg-[#FFF1DA] text-sm font-black text-[#D9491E]">P</span>
             <div>
               <p className="font-black text-[#B51F18]">{tableLabel(tableId, currentTable)}</p>
-              <p className="text-xs text-[#8A7A70]">{currentTable ? `${currentTable.capacity} chỗ ngồi` : user ? "Thành viên" : "Khách QR"}</p>
+              <div className="mt-1 flex items-center gap-2 text-xs text-[#8A7A70]">
+                <span className="rounded-full bg-[#FFF1DA] px-2 py-1 font-bold text-[#B95A22]">{user ? "Thành viên" : "Khách"}</span>
+                {currentTable && <span>{currentTable.capacity} chỗ ngồi</span>}
+              </div>
             </div>
           </div>
         </div>
