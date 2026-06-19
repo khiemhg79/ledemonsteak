@@ -148,6 +148,7 @@ model ComboItem {
 }
 model Order {
   id          String      @id @default(cuid())
+  orderNumber Int         @unique @default(autoincrement())
   tableId     String
   userId      String?
   customerId  String?

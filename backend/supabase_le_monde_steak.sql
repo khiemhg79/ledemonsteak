@@ -140,6 +140,7 @@ create table if not exists "customerpromotions" (
 
 create table if not exists "orders" (
   "id" text primary key default gen_random_uuid()::text,
+  "orderNumber" serial not null unique,
   "tableId" text not null references "tables"("id") on update cascade on delete restrict,
   "userId" text references "users"("id") on update cascade on delete set null,
   "customerId" text references "customers"("id") on update cascade on delete set null,

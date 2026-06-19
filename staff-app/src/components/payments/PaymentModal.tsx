@@ -7,12 +7,6 @@ type PaymentMethod = "CASH" | "BANK_TRANSFER" | "CARD" | "E_WALLET"
 const labels: Record<PaymentMethod, string> = { CASH: "Tiền mặt", BANK_TRANSFER: "Chuyển khoản", CARD: "Thẻ ngân hàng", E_WALLET: "Ví điện tử / MoMo" }
 const money = (value: number) => Number(value || 0).toLocaleString("vi-VN") + "đ"
 
-function orderNo(id?: string) {
-  if (!id) return "..."
-  const digits = id.replace(/\D/g, "")
-  return digits ? digits.slice(-2).padStart(2, "0") : id.slice(-4).toUpperCase()
-}
-
 export default function PaymentModal({ order, onClose, onComplete }: { order: any | null; onClose: () => void; onComplete: () => void }) {
   const [received, setReceived] = useState("")
   const [method, setMethod] = useState<PaymentMethod>("CASH")
@@ -42,7 +36,7 @@ export default function PaymentModal({ order, onClose, onComplete }: { order: an
 
   return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4" onClick={onClose}>
     <section className="max-h-[92vh] w-full max-w-md overflow-y-auto rounded-lg bg-white p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-      <div className="flex items-start justify-between"><div><h2 className="text-lg font-black text-[#111827]">Xác nhận Thanh toán</h2><p className="mt-2 text-sm text-[#475467]">Đơn hàng #{orderNo(order.id)} • Bàn {String(order.table?.number ?? "").replace(/^T/i, "")}</p><p className="text-3xl font-black text-[#111827]">{money(order.finalAmount)}</p></div><button className="text-2xl text-[#667085]" onClick={onClose}>×</button></div>
+      <div className="flex items-start justify-between"><div><h2 className="text-lg font-black text-[#111827]">Xác nhận Thanh toán</h2><p className="mt-2 text-sm text-[#475467]">Đơn hàng #{order.orderNumber} • Bàn {String(order.table?.number ?? "").replace(/^T/i, "")}</p><p className="text-3xl font-black text-[#111827]">{money(order.finalAmount)}</p></div><button className="text-2xl text-[#667085]" onClick={onClose}>×</button></div>
       <div className="my-4 border-t border-[#D0D5DD]" />
       <h3 className="text-sm font-black text-[#111827]">Chi tiết món đã gọi</h3>
       <div className="mt-2 divide-y divide-[#D0D5DD]">{order.items?.map((item: any) => <div key={item.id} className="flex justify-between gap-4 py-2"><div><p className="text-sm font-bold text-[#111827]">{item.item?.name ?? item.combo?.name}</p><p className="text-xs text-[#667085]">{item.combo ? "Combo" : "Món lẻ"} • SL: {item.quantity}</p></div><div className="text-right"><p className="text-sm font-black text-[#111827]">{money(item.price * item.quantity)}</p><p className="text-xs text-[#98A2B3]">({money(item.price)} / phần)</p></div></div>)}</div>

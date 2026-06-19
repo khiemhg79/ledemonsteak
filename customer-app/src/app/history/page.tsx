@@ -22,7 +22,7 @@ export default function HistoryPage() {
         {orders.map((order) => (
           <div key={order.id} className="rounded-xl bg-white p-4 shadow-sm">
             <div className="flex justify-between">
-              <p className="font-semibold text-gray-900">Đơn #{order.id.slice(-6).toUpperCase()}</p>
+              <p className="font-semibold text-gray-900">Đơn #{order.orderNumber}</p>
               <p className="font-bold text-[#8B1A1A]">{money(order.finalAmount)}</p>
             </div>
             <p className="mt-1 text-sm text-gray-500">Bàn {order.table?.number} - {new Date(order.createdAt).toLocaleString("vi-VN")}</p>

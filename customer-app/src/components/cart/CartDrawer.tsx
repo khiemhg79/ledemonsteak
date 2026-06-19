@@ -1,24 +1,18 @@
 "use client"
 
 import { useState } from "react"
-import { apiGet, apiPost } from "@/lib/api"
+import { apiPost } from "@/lib/api"
 import { useAuth } from "@/store/auth"
 import { useCart } from "@/store/cart"
 
 const money = (value: number) => value.toLocaleString("vi-VN") + "đ"
-
-function orderNo(id?: string) {
-  if (!id) return "..."
-  const digits = id.replace(/\D/g, "")
-  return digits ? digits.slice(-2).padStart(2, "0") : id.slice(-4).toUpperCase()
-}
 
 export default function CartDrawer() {
   const [open, setOpen] = useState(false)
   const [message, setMessage] = useState("")
   const [successOrder, setSuccessOrder] = useState<any | null>(null)
   const [loading, setLoading] = useState(false)
-  const { items, tableId, updateQty, removeItem, clearCart, total, setTableId } = useCart()
+  const { items, tableId, updateQty, removeItem, clearCart, total } = useCart()
   const user = useAuth((s) => s.user)
 
   async function submitOrder() {
@@ -31,16 +25,10 @@ export default function CartDrawer() {
 
     setLoading(true)
     try {
-      let currentTableId = tableId
-      if (!currentTableId) {
-        const tables = await apiGet("/api/tables")
-        currentTableId = tables[0]?.id
-        if (currentTableId) setTableId(currentTableId)
-      }
-      if (!currentTableId) throw new Error("Chưa có bàn để tạo đơn.")
+      if (!tableId) throw new Error("Bạn cần quét mã QR tại bàn trước khi đặt món.")
 
       const order = await apiPost("/api/orders", {
-        tableId: currentTableId,
+        tableId,
         userId: user?.id,
         items: items.map((item) => ({
           itemId: item.type === "dish" ? item.id : undefined,
@@ -123,7 +111,7 @@ export default function CartDrawer() {
             {successOrder && (
               <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/35 px-7">
                 <div className="w-full rounded-xl bg-[#F8F7FF] p-5 shadow-2xl">
-                  <p className="text-base font-semibold text-[#211715]">Đã tạo đơn #{orderNo(successOrder.id)}. Cảm ơn bạn!</p>
+                  <p className="text-base font-semibold text-[#211715]">Đã tạo đơn #{successOrder.orderNumber}. Cảm ơn bạn!</p>
                   <div className="mt-5 flex justify-end">
                     <button className="px-3 py-2 text-sm font-bold text-[#2F6DF6]" onClick={() => setSuccessOrder(null)}>Đóng</button>
                   </div>
