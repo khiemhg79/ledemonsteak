@@ -3,11 +3,21 @@ import { prisma } from "@/lib/prisma"
 import { signToken } from "@/lib/jwt"
 import { corsHeaders, optionsResponse } from "@/lib/cors"
 import bcrypt from "bcryptjs"
+import { isVietnamesePhone, normalizePhone } from "@/lib/authValidation"
 
 export async function OPTIONS() { return optionsResponse() }
 
 export async function POST(req: NextRequest) {
-  const { name, phone, password } = await req.json()
+  const body = await req.json()
+  const name = String(body.name ?? "").trim()
+  const phone = normalizePhone(body.phone)
+  const password = String(body.password ?? "")
+  if (!name || !phone || !password)
+    return NextResponse.json({ error: "Vui lòng nhập đầy đủ các trường bắt buộc" }, { status: 400, headers: corsHeaders() })
+  if (!isVietnamesePhone(phone))
+    return NextResponse.json({ error: "Số điện thoại không hợp lệ" }, { status: 400, headers: corsHeaders() })
+  if (password.length < 8)
+    return NextResponse.json({ error: "Mật khẩu phải có ít nhất 8 ký tự" }, { status: 400, headers: corsHeaders() })
   const exists = await prisma.user.findUnique({ where: { phone } })
   if (exists)
     return NextResponse.json({ error: "Số điện thoại đã đăng ký" }, { status: 400, headers: corsHeaders() })

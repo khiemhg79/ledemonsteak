@@ -3,11 +3,14 @@ import { prisma } from "@/lib/prisma"
 import { signToken } from "@/lib/jwt"
 import { corsHeaders, optionsResponse } from "@/lib/cors"
 import bcrypt from "bcryptjs"
+import { normalizePhone } from "@/lib/authValidation"
 
 export async function OPTIONS() { return optionsResponse() }
 
 export async function POST(req: NextRequest) {
-  const { phone, password } = await req.json()
+  const body = await req.json()
+  const phone = normalizePhone(body.phone)
+  const password = String(body.password ?? "")
   const user = await prisma.user.findUnique({ where: { phone } })
   if (!user || !user.isActive)
     return NextResponse.json({ error: "Tài khoản không tồn tại" }, { status: 401, headers: corsHeaders() })

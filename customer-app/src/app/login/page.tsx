@@ -28,6 +28,15 @@ export default function LoginPage() {
     e.preventDefault()
     setMessage("")
 
+    const normalizedPhone = phone.replace(/\D/g, "").replace(/^84/, "0")
+    if (!/^0[35789]\d{8}$/.test(normalizedPhone)) {
+      setMessage("Số điện thoại không hợp lệ.")
+      return
+    }
+    if (mode === "register" && password.length < 8) {
+      setMessage("Mật khẩu phải có ít nhất 8 ký tự.")
+      return
+    }
     if (mode === "register" && password !== confirmPassword) {
       setMessage("Mật khẩu nhập lại chưa khớp.")
       return
@@ -36,7 +45,7 @@ export default function LoginPage() {
     setLoading(true)
     try {
       const path = mode === "login" ? "/api/auth/login" : "/api/auth/register"
-      const body = mode === "login" ? { phone, password } : { name, phone, password }
+      const body = mode === "login" ? { phone: normalizedPhone, password } : { name: name.trim(), phone: normalizedPhone, password }
       const data = await apiPost(path, body)
       login(data.user, data.token)
       router.push("/")
@@ -95,6 +104,7 @@ export default function LoginPage() {
           <input
             className="h-12 w-full rounded-xl border border-[#E8CFA6] bg-white/90 px-4 text-sm outline-none transition placeholder:text-[#B7AAA2] focus:border-[#9B1C1C] focus:ring-4 focus:ring-[#9B1C1C]/10"
             placeholder="Số điện thoại"
+            inputMode="tel"
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
             required
@@ -104,6 +114,7 @@ export default function LoginPage() {
             placeholder="Mật khẩu"
             type="password"
             value={password}
+            minLength={mode === "register" ? 8 : undefined}
             onChange={(e) => setPassword(e.target.value)}
             required
           />
@@ -113,6 +124,7 @@ export default function LoginPage() {
               placeholder="Nhập lại mật khẩu"
               type="password"
               value={confirmPassword}
+              minLength={8}
               onChange={(e) => setConfirmPassword(e.target.value)}
               required
             />
