@@ -13,6 +13,10 @@ type Dish = { id: string; name: string; price: number; description?: string | nu
 type Combo = { id: string; name: string; price: number; description?: string | null; image?: string | null; items?: any[] }
 type RestaurantTable = { id: string; number: string; capacity: number; status: string }
 
+function normalizeSearch(value: string) {
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/g, "d").replace(/Đ/g, "D").trim().toLocaleLowerCase("vi-VN")
+}
+
 function tableLabel(tableId: string | null, table?: RestaurantTable) {
   if (!tableId) return "Chưa chọn bàn"
   if (table) {
@@ -68,16 +72,25 @@ export default function HomePage() {
 
   const currentTable = tables.find((table) => table.id === tableId)
 
-  const filteredDishes = useMemo(() => dishes.filter((dish) => {
-    const matchCategory = selected === "all" || dish.category?.id === selected
-    const matchText = dish.name.toLowerCase().includes(query.toLowerCase())
-    return matchCategory && matchText
-  }), [dishes, selected, query])
-
-  const filteredCombos = useMemo(() => {
-    if (selected !== "all" && selected !== "combo") return []
-    return combos.filter((combo) => combo.name.toLowerCase().includes(query.toLowerCase()))
-  }, [combos, selected, query])
+  const filteredItems = useMemo(() => {
+    const keyword = normalizeSearch(query)
+    const candidates = [
+      ...combos.map((combo) => ({ ...combo, kind: "combo" as const, categoryId: "combo" })),
+      ...dishes.map((dish) => ({ ...dish, kind: "dish" as const, categoryId: dish.category?.id ?? "" })),
+    ]
+    function rank(item: { name: string; description?: string | null }) {
+      if (!keyword) return 0
+      const name = normalizeSearch(item.name)
+      const description = normalizeSearch(item.description ?? "")
+      if (name.startsWith(keyword)) return 0
+      if (name.includes(keyword)) return 1
+      if (description.includes(keyword)) return 2
+      return 99
+    }
+    return candidates
+      .filter((item) => (selected === "all" || item.categoryId === selected) && rank(item) < 99)
+      .sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name, "vi"))
+  }, [combos, dishes, selected, query])
 
   return (
     <main className="mx-auto min-h-screen max-w-md bg-[#FFF8EE] pb-28 text-[#211715] shadow-2xl shadow-black/10">
@@ -126,11 +139,10 @@ export default function HomePage() {
         {error && <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>}
 
         <div className="grid grid-cols-2 gap-3">
-          {filteredCombos.map((combo) => <DishCard key={combo.id} id={combo.id} type="combo" name={combo.name} price={combo.price} description={combo.description} image={combo.image} items={combo.items} />)}
-          {filteredDishes.map((dish) => <DishCard key={dish.id} id={dish.id} type="dish" name={dish.name} price={dish.price} description={dish.description} image={dish.image} category={dish.category?.name} />)}
+          {filteredItems.map((item) => <DishCard key={`${item.kind}-${item.id}`} id={item.id} type={item.kind} name={item.name} price={item.price} description={item.description} image={item.image} items={item.kind === "combo" ? item.items : undefined} category={item.kind === "dish" ? item.category?.name : undefined} />)}
         </div>
 
-        {!loading && !error && !filteredCombos.length && !filteredDishes.length && (
+        {!loading && !error && filteredItems.length === 0 && (
           <div className="rounded-2xl bg-white p-6 text-center text-sm text-[#8A7A70] shadow-sm">Không tìm thấy món ăn phù hợp.</div>
         )}
       </section>
