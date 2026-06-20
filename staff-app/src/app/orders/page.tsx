@@ -8,11 +8,23 @@ import { apiGet, apiPatch } from "@/lib/api"
 import { useAuth } from "@/store/auth"
 
 type ViewMode = "orders" | "items"
+type ItemFilter = "all" | "waiting" | "preparing" | "done"
 
 const money = (value: number) => value.toLocaleString("vi-VN") + "đ"
 const nextStatus: Record<string, string> = { WAITING: "PREPARING", PREPARING: "DONE", DONE: "SERVED" }
 const actionLabel: Record<string, string> = { WAITING: "▶ Bắt đầu", PREPARING: "✓ Xong món", DONE: "✓ Đã phục vụ" }
 const statusLabel: Record<string, string> = { WAITING: "Chờ bắt đầu", PREPARING: "Đang chế biến", DONE: "Đã xong món", SERVED: "Đã phục vụ" }
+const itemCardStyle: Record<string, string> = {
+  WAITING: "border-[#F7C838] bg-[#FFF8C9]",
+  PREPARING: "border-[#78AEEF] bg-[#DCEBFF]",
+  DONE: "border-[#65D89A] bg-[#D9F8E7]",
+  SERVED: "border-[#65D89A] bg-[#D9F8E7]",
+}
+const itemButtonStyle: Record<string, string> = {
+  WAITING: "bg-[#2F80ED] text-white",
+  PREPARING: "bg-[#12B76A] text-white",
+  DONE: "bg-[#667085] text-white",
+}
 
 export default function OrdersPage() {
   const router = useRouter()
@@ -20,6 +32,7 @@ export default function OrdersPage() {
   const user = useAuth((state) => state.user)
   const [orders, setOrders] = useState<any[]>([])
   const [viewMode, setViewMode] = useState<ViewMode>("orders")
+  const [itemFilter, setItemFilter] = useState<ItemFilter>("all")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
 
@@ -52,6 +65,12 @@ export default function OrdersPage() {
   }, [])
 
   const flatItems = useMemo(() => orders.flatMap((order) => order.items.map((item: any) => ({ ...item, order }))), [orders])
+  const filteredItems = useMemo(() => flatItems.filter((item: any) => {
+    if (itemFilter === "waiting") return item.status === "WAITING"
+    if (itemFilter === "preparing") return item.status === "PREPARING"
+    if (itemFilter === "done") return item.status === "DONE" || item.status === "SERVED"
+    return true
+  }), [flatItems, itemFilter])
 
   return (
     <main className="min-h-screen bg-white">
@@ -77,6 +96,15 @@ export default function OrdersPage() {
           <button className="rounded-md bg-[#FF4A12] px-4 py-3 text-sm font-black text-white" onClick={() => loadOrders()}>Làm mới</button>
         </div>
 
+        {viewMode === "items" && <div className="mb-5 flex flex-wrap gap-2">
+          {([
+            ["all", "Tất cả", flatItems.length],
+            ["waiting", "Chờ làm", flatItems.filter((item: any) => item.status === "WAITING").length],
+            ["preparing", "Đang làm", flatItems.filter((item: any) => item.status === "PREPARING").length],
+            ["done", "Đã xong", flatItems.filter((item: any) => item.status === "DONE" || item.status === "SERVED").length],
+          ] as [ItemFilter, string, number][]).map(([value, label, count]) => <button key={value} className={`rounded-md border px-4 py-2 text-sm font-black ${itemFilter === value ? "border-[#111827] bg-[#111827] text-white" : "border-[#D0D5DD] bg-white text-[#475467]"}`} onClick={() => setItemFilter(value)}>{label} ({count})</button>)}
+        </div>}
+
         {error && <div className="mb-4 rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>}
         {loading && <div className="rounded-md bg-white p-6 text-center text-sm text-gray-500">Đang tải đơn...</div>}
 
@@ -86,24 +114,26 @@ export default function OrdersPage() {
           </div>
         ) : (
           <div className="grid gap-4 lg:grid-cols-4">
-            {flatItems.map((item: any) => {
+            {filteredItems.map((item: any) => {
               const label = item.item?.name ?? item.combo?.name
               const next = nextStatus[item.status]
               return (
-                <article key={item.id} className="rounded-md border border-[#D9DEE6] bg-white p-4 shadow-md shadow-black/5">
+                <article key={item.id} className={`rounded-md border-2 p-4 shadow-md shadow-black/5 ${itemCardStyle[item.status] ?? "border-[#D9DEE6] bg-white"}`}>
                   <p className="text-sm font-bold text-[#536173]">Bàn {item.order.table?.number}</p>
                   <p className="mt-1 text-xs text-[#667085]">{new Date(item.order.createdAt).toLocaleTimeString("vi-VN")} {new Date(item.order.createdAt).toLocaleDateString("vi-VN")}</p>
                   <div className="mt-2 flex flex-wrap items-center gap-2"><h3 className="line-clamp-2 font-black text-[#111827]">{item.quantity}x {label}</h3>{item.combo && <span className="rounded-full bg-[#DDF3FF] px-2 py-1 text-[10px] font-bold text-[#1683B8]">Combo</span>}</div>
                   <p className="mt-2 text-sm font-bold text-[#536173]">{money(item.price * item.quantity)}</p>
                   <p className="mt-2 text-xs font-semibold text-[#667085]">Trạng thái: {statusLabel[item.status] ?? item.status}</p>
-                  {next ? <button className="mt-4 rounded-md bg-[#2F80ED] px-3 py-2 text-xs font-black text-white" onClick={() => updateItem(item.order.id, item.id, next)}>{actionLabel[item.status]}</button> : <span className="mt-4 inline-block rounded-md bg-[#6B7280] px-3 py-2 text-xs font-black text-white">✓ Đã phục vụ</span>}
+                  {next ? <button className={`mt-4 w-full rounded-md px-3 py-2 text-xs font-black ${itemButtonStyle[item.status] ?? "bg-[#2F80ED] text-white"}`} onClick={() => updateItem(item.order.id, item.id, next)}>{actionLabel[item.status]}</button> : <span className="mt-4 inline-block w-full rounded-md bg-[#667085] px-3 py-2 text-center text-xs font-black text-white">✓ Đã phục vụ</span>}
                 </article>
               )
             })}
           </div>
         )}
 
-        {!loading && !error && orders.length === 0 && <div className="rounded-md bg-white p-6 text-center text-sm text-gray-500">Chưa có đơn cần xử lý.</div>}
+        {!loading && !error && viewMode === "items" && filteredItems.length === 0 && <div className="rounded-md border border-[#EAECF0] bg-white p-6 text-center text-sm text-[#667085]">Chưa có món phù hợp với trạng thái đã chọn.</div>}
+
+        {!loading && !error && viewMode === "orders" && orders.length === 0 && <div className="rounded-md bg-white p-6 text-center text-sm text-gray-500">Chưa có đơn cần xử lý.</div>}
       </section>
     </main>
   )
