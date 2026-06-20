@@ -18,19 +18,26 @@ async function request(input: RequestInfo | URL, init?: RequestInit) {
   catch { throw new Error("Không thể kết nối hệ thống. Vui lòng kiểm tra Internet và thử lại.") }
 }
 
+function authToken(token?: string) {
+  if (token) return token
+  return typeof window !== "undefined" ? localStorage.getItem("token") ?? undefined : undefined
+}
+
 export async function apiGet(path: string, token?: string) {
+  const currentToken = authToken(token)
   const res = await request(`${apiBase()}${path}`, {
     cache: "no-store",
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    headers: currentToken ? { Authorization: `Bearer ${currentToken}` } : {},
   })
   if (!res.ok) throw new Error(await readError(res))
   return res.json()
 }
 
 export async function apiPost(path: string, body: any, token?: string) {
+  const currentToken = authToken(token)
   const res = await request(`${apiBase()}${path}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    headers: { "Content-Type": "application/json", ...(currentToken ? { Authorization: `Bearer ${currentToken}` } : {}) },
     body: JSON.stringify(body),
   })
   if (!res.ok) throw new Error(await readError(res))
@@ -38,9 +45,10 @@ export async function apiPost(path: string, body: any, token?: string) {
 }
 
 export async function apiPatch(path: string, body: any, token?: string) {
+  const currentToken = authToken(token)
   const res = await request(`${apiBase()}${path}`, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    headers: { "Content-Type": "application/json", ...(currentToken ? { Authorization: `Bearer ${currentToken}` } : {}) },
     body: JSON.stringify(body),
   })
   if (!res.ok) throw new Error(await readError(res))
@@ -48,9 +56,10 @@ export async function apiPatch(path: string, body: any, token?: string) {
 }
 
 export async function apiDelete(path: string, token?: string) {
+  const currentToken = authToken(token)
   const res = await request(`${apiBase()}${path}`, {
     method: "DELETE",
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    headers: currentToken ? { Authorization: `Bearer ${currentToken}` } : {},
   })
   if (!res.ok) throw new Error(await readError(res))
   return res.json()

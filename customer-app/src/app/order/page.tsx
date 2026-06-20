@@ -1,34 +1,15 @@
 "use client"
 
 import Link from "next/link"
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useState } from "react"
 import CartDrawer from "@/components/cart/CartDrawer"
 import OrderStatus from "@/components/order/OrderStatus"
+import VoucherList, { Voucher } from "@/components/promotions/VoucherList"
 import { apiGet, apiPost } from "@/lib/api"
 import { useAuth } from "@/store/auth"
 import { useCart } from "@/store/cart"
 
 const money = (value: number) => value.toLocaleString("vi-VN") + "đ"
-
-type Promo = {
-  id: string
-  name: string
-  code: string
-  discountType: "PERCENTAGE" | "FIXED"
-  discountValue: number
-  minOrder: number
-  maxDiscount?: number | null
-  description?: string | null
-  isActive: boolean
-  startDate: string
-  endDate: string
-  usageLimit?: number | null
-  usageCount?: number
-}
-
-function discountLabel(promo: Promo) {
-  return promo.discountType === "PERCENTAGE" ? `Giảm ${promo.discountValue}%` : `Giảm ${money(promo.discountValue)}`
-}
 
 export default function OrderPage() {
   const tableId = useCart((s) => s.tableId)
@@ -37,7 +18,7 @@ export default function OrderPage() {
   const logout = useAuth((s) => s.logout)
   const hydrateAuth = useAuth((s) => s.hydrate)
   const [orders, setOrders] = useState<any[]>([])
-  const [promos, setPromos] = useState<Promo[]>([])
+  const [promos, setPromos] = useState<Voucher[]>([])
   const [promoOpen, setPromoOpen] = useState(true)
   const [promoCode, setPromoCode] = useState("")
   const [discount, setDiscount] = useState(0)
@@ -46,6 +27,8 @@ export default function OrderPage() {
   const [successOpen, setSuccessOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [paying, setPaying] = useState(false)
+  const [applyingCode, setApplyingCode] = useState("")
+  const order = orders[0]
 
   async function loadOrders(clearMessage = true) {
     setLoading(true)
@@ -67,19 +50,16 @@ export default function OrderPage() {
 
   useEffect(() => {
     loadOrders()
-    apiGet("/api/promotions").then(setPromos).catch(() => setPromos([]))
-  }, [tableId])
+    if (user) apiGet("/api/promotions").then(setPromos).catch(() => setPromos([]))
+    else setPromos([])
+  }, [tableId, user?.id])
 
-  const order = orders[0]
-  const activePromos = useMemo(() => {
-    const now = Date.now()
-    return promos.filter((promo) =>
-      promo.isActive &&
-      new Date(promo.startDate).getTime() <= now &&
-      new Date(promo.endDate).getTime() >= now &&
-      (!promo.usageLimit || (promo.usageCount ?? 0) < promo.usageLimit)
-    ).slice(0, 5)
-  }, [promos])
+  useEffect(() => {
+    if (!order) return
+    setPromoCode(order.promoCode ?? "")
+    setDiscount(order.discount ?? 0)
+    setPreviewTotal(order.finalAmount ?? order.totalAmount)
+  }, [order?.id, order?.promoCode, order?.discount, order?.finalAmount])
   const allDone = !!order?.items?.length && order.items.every((item: any) => item.status === "DONE" || item.status === "SERVED")
   const totalAfterDiscount = previewTotal ?? order?.finalAmount ?? order?.totalAmount ?? 0
   const isPaymentRequested = order?.table?.status === "REQUESTING_BILL"
@@ -87,6 +67,7 @@ export default function OrderPage() {
   async function applyPromotion(code: string) {
     if (!order) return
     setMessage("")
+    setApplyingCode(code)
     try {
       const result = await apiPost("/api/promotions/apply", { code, orderAmount: order.totalAmount })
       setPromoCode(code)
@@ -95,6 +76,8 @@ export default function OrderPage() {
       setMessage(`Đã áp dụng mã ${code}.`)
     } catch (error: any) {
       setMessage(error.message || "Không áp dụng được mã giảm giá.")
+    } finally {
+      setApplyingCode("")
     }
   }
 
@@ -103,7 +86,7 @@ export default function OrderPage() {
     setMessage("")
     setPaying(true)
     try {
-      const updated = await apiPost(`/api/orders/${order.id}/checkout`, { promoCode: promoCode || undefined })
+      const updated = await apiPost(`/api/orders/${order.id}/checkout`, { promoCode: promoCode || order.promoCode || undefined })
       setDiscount(updated.discount ?? discount)
       setPreviewTotal(updated.finalAmount)
       setMessage(`Đã gửi yêu cầu thanh toán. Nhân viên sẽ tới xác nhận đơn ${money(updated.finalAmount)}.`)
@@ -177,33 +160,14 @@ export default function OrderPage() {
 
             {promoOpen && (
               <div className="mt-3 space-y-2">
-                {activePromos.map((promo) => (
-                  <article key={promo.id} className={`rounded-2xl border bg-white p-3 shadow-sm ${promoCode === promo.code ? "border-[#D9491E]" : "border-[#F0D7B0]"}`}>
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="font-black text-[#D9491E]">{promo.name}</h3>
-                          <span className="rounded-md bg-[#FBE7C9] px-2 py-1 text-xs font-bold text-[#B95A22]">{discountLabel(promo)}</span>
-                        </div>
-                        <div className="mt-2 inline-flex items-center rounded-md border border-dashed border-[#F08A1A] bg-[#FFF8EE] px-2 py-1 font-mono text-xs font-black tracking-wide text-[#B93A16]">Mã: {promo.code}</div>
-                        <p className="mt-1 line-clamp-2 text-xs leading-5 text-[#6F625C]">{promo.description || `Áp dụng cho đơn từ ${money(promo.minOrder)}.`}</p>
-                        {(order?.totalAmount ?? 0) < promo.minOrder && (
-                          <p className="mt-1 text-xs font-bold text-amber-600">Cần thêm {money(promo.minOrder - (order?.totalAmount ?? 0))} để sử dụng</p>
-                        )}
-                      </div>
-                      <button className="shrink-0 text-sm font-black text-[#D9491E] disabled:text-[#B7A79E]" disabled={(order?.totalAmount ?? 0) < promo.minOrder} onClick={() => applyPromotion(promo.code)}>
-                        {promoCode === promo.code ? "Đã áp dụng" : (order?.totalAmount ?? 0) < promo.minOrder ? "Chưa đủ" : "Áp dụng"}
-                      </button>
-                    </div>
-                  </article>
-                ))}
-                {activePromos.length === 0 && <div className="rounded-2xl border border-[#F0D7B0] bg-white p-3 text-sm text-[#8A7A70]">Hiện chưa có mã giảm giá đang hoạt động.</div>}
+                {!user ? <div className="rounded-xl border border-[#F0D7B0] bg-white p-3 text-sm text-[#8A7A70]">Vui lòng đăng nhập để xem và sử dụng mã giảm giá.</div> : <VoucherList vouchers={promos} amount={order.totalAmount} selectedCode={promoCode} onApply={applyPromotion} busyCode={applyingCode} />}
               </div>
             )}
 
             <div className="mt-4 space-y-2">
               <div className="flex justify-between text-sm text-[#6F625C]"><span>Tạm tính</span><span className="font-black text-[#211715]">{money(order.totalAmount)}</span></div>
               <div className="flex justify-between text-sm text-[#6F625C]"><span>Giảm giá</span><span className="font-black text-[#D9491E]">-{money(discount || order.discount || 0)}</span></div>
+              {(promoCode || order.promoCode) && <p className="text-right text-xs font-bold text-emerald-700">1 mã đã áp dụng</p>}
               <div className="border-t border-[#F0D7B0] pt-2">
                 <div className="flex items-center justify-between">
                   <span className="text-lg font-black text-[#211715]">Tổng cộng</span>

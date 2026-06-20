@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { corsHeaders, optionsResponse } from "@/lib/cors"
+import { authorize } from "@/lib/apiAuth"
+import { calculatePromotion, PromotionError } from "@/lib/promotion"
 
 export async function OPTIONS() { return optionsResponse() }
 
 export async function POST(req: NextRequest) {
   try {
-    const { tableId, userId, items } = await req.json()
+    const { tableId, userId, items, promoCode } = await req.json()
     if (!tableId || !Array.isArray(items) || items.length === 0) {
       return NextResponse.json({ error: "Bàn và danh sách món là bắt buộc." }, { status: 400, headers: corsHeaders() })
     }
@@ -50,6 +52,18 @@ export async function POST(req: NextRequest) {
 
     const pricedDetails = details.map((detail) => ({ ...detail, price: Number(detail.price) }))
     const totalAmount = pricedDetails.reduce((sum, detail) => sum + detail.price * detail.quantity, 0)
+    let discount = 0
+    let finalAmount = totalAmount
+    let appliedPromoCode: string | null = null
+    if (promoCode) {
+      const auth = authorize(req, ["CUSTOMER"])
+      if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status, headers: corsHeaders() })
+      if (userId && auth.user.id !== userId) return NextResponse.json({ error: "Tài khoản không khớp với người đặt món." }, { status: 403, headers: corsHeaders() })
+      const calculation = await calculatePromotion(promoCode, totalAmount)
+      discount = calculation.discount
+      finalAmount = calculation.finalAmount
+      appliedPromoCode = calculation.promo.code
+    }
     const order = await prisma.$transaction(async (tx) => {
       const created = await tx.order.create({
         data: {
@@ -57,7 +71,9 @@ export async function POST(req: NextRequest) {
           userId: userId ?? null,
           customerId: customer?.id ?? null,
           totalAmount,
-          finalAmount: totalAmount,
+          discount,
+          finalAmount,
+          promoCode: appliedPromoCode,
           details: { create: pricedDetails },
         },
         include: { details: true },
@@ -67,6 +83,7 @@ export async function POST(req: NextRequest) {
     })
     return NextResponse.json({ ...order, items: order.details }, { status: 201, headers: corsHeaders() })
   } catch (error) {
+    if (error instanceof PromotionError) return NextResponse.json({ error: error.message }, { status: 400, headers: corsHeaders() })
     console.error("Create order failed", error)
     return NextResponse.json({ error: "Đặt món thất bại. Vui lòng thử lại sau." }, { status: 500, headers: corsHeaders() })
   }

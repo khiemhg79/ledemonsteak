@@ -1,7 +1,8 @@
 "use client"
 
-import { useState } from "react"
-import { apiPost } from "@/lib/api"
+import { useEffect, useState } from "react"
+import VoucherList, { Voucher } from "@/components/promotions/VoucherList"
+import { apiGet, apiPost } from "@/lib/api"
 import { useAuth } from "@/store/auth"
 import { useCart } from "@/store/cart"
 
@@ -12,8 +13,50 @@ export default function CartDrawer() {
   const [message, setMessage] = useState("")
   const [successOrder, setSuccessOrder] = useState<any | null>(null)
   const [loading, setLoading] = useState(false)
+  const [promoOpen, setPromoOpen] = useState(false)
+  const [promos, setPromos] = useState<Voucher[]>([])
+  const [promoCode, setPromoCode] = useState("")
+  const [discount, setDiscount] = useState(0)
+  const [finalAmount, setFinalAmount] = useState<number | null>(null)
+  const [applyingCode, setApplyingCode] = useState("")
   const { items, tableId, updateQty, removeItem, clearCart, total } = useCart()
   const user = useAuth((s) => s.user)
+  const subtotal = total()
+
+  useEffect(() => {
+    if (!open || !user) { setPromos([]); return }
+    apiGet("/api/promotions").then(setPromos).catch(() => setPromos([]))
+  }, [open, user?.id])
+
+  useEffect(() => {
+    if (!promoCode || !user || subtotal <= 0) { setDiscount(0); setFinalAmount(null); return }
+    apiPost("/api/promotions/apply", { code: promoCode, orderAmount: subtotal })
+      .then((result) => { setDiscount(result.discount ?? 0); setFinalAmount(result.finalAmount ?? subtotal) })
+      .catch((error) => { setPromoCode(""); setDiscount(0); setFinalAmount(null); setMessage(error.message || "Mã giảm giá không còn phù hợp với giỏ hàng.") })
+  }, [subtotal, promoCode, user?.id])
+
+  async function applyPromotion(code: string) {
+    setMessage("")
+    setApplyingCode(code)
+    try {
+      const result = await apiPost("/api/promotions/apply", { code, orderAmount: subtotal })
+      setPromoCode(code)
+      setDiscount(result.discount ?? 0)
+      setFinalAmount(result.finalAmount ?? subtotal)
+      setMessage(`Đã áp dụng mã ${code}.`)
+    } catch (error: any) {
+      setMessage(error.message || "Không áp dụng được mã giảm giá.")
+    } finally {
+      setApplyingCode("")
+    }
+  }
+
+  function clearAll() {
+    clearCart()
+    setPromoCode("")
+    setDiscount(0)
+    setFinalAmount(null)
+  }
 
   async function submitOrder() {
     setMessage("")
@@ -30,6 +73,7 @@ export default function CartDrawer() {
       const order = await apiPost("/api/orders", {
         tableId,
         userId: user?.id,
+        promoCode: promoCode || undefined,
         items: items.map((item) => ({
           itemId: item.type === "dish" ? item.id : undefined,
           comboId: item.type === "combo" ? item.id : undefined,
@@ -37,7 +81,7 @@ export default function CartDrawer() {
           price: item.price,
         })),
       })
-      clearCart()
+      clearAll()
       setSuccessOrder(order)
     } catch (error: any) {
       setMessage(error.message || "Không thể tạo đơn.")
@@ -86,14 +130,25 @@ export default function CartDrawer() {
                   <p className="col-span-2 col-start-3 text-right text-xs font-bold text-[#5E514A]">{money(item.price * item.quantity)}</p>
                 </div>
               ))}
+              {items.length > 0 && <div className="rounded-xl border border-dashed border-[#F08A1A] bg-[#FFF8EE]">
+                <button className="flex w-full items-center justify-between px-4 py-3" onClick={() => setPromoOpen((value) => !value)}>
+                  <span className="text-sm font-bold text-[#6F625C]">◇ Chọn mã giảm giá</span>
+                  <span className="text-xs font-black text-[#D9491E]">{promoOpen ? "Đóng" : "Mở"}</span>
+                </button>
+                {promoOpen && <div className="space-y-2 border-t border-[#F0D7B0] p-3">
+                  {!user ? <div className="rounded-xl bg-white p-3 text-sm text-[#8A7A70]">Vui lòng đăng nhập để xem và sử dụng mã giảm giá.</div> : <VoucherList vouchers={promos} amount={subtotal} selectedCode={promoCode} onApply={applyPromotion} busyCode={applyingCode} />}
+                </div>}
+              </div>}
             </div>
 
             <div className="border-t border-[#EEE0CB] bg-white px-4 py-4">
-              <div className="mb-3 flex items-center justify-between">
+              <div className="flex items-center justify-between">
                 <span className="text-sm font-semibold text-[#6F625C]">Tạm tính</span>
-                <span className="text-xl font-black text-[#B51F18]">{money(total())}</span>
+                <span className="font-black text-[#211715]">{money(subtotal)}</span>
               </div>
-              {message && <p className="mb-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{message}</p>}
+              {promoCode && <><div className="mt-1 flex items-center justify-between text-sm"><span className="text-[#6F625C]">Giảm giá</span><span className="font-black text-[#D9491E]">-{money(discount)}</span></div><p className="text-right text-xs font-bold text-emerald-700">1 mã đã áp dụng</p></>}
+              <div className="mb-3 mt-2 flex items-center justify-between border-t border-[#F0D7B0] pt-2"><span className="font-black text-[#211715]">Tổng cộng</span><span className="text-xl font-black text-[#B51F18]">{money(finalAmount ?? subtotal)}</span></div>
+              {message && <p className="mb-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">{message}</p>}
               <div className="grid grid-cols-[1fr_auto] gap-2">
                 <button
                   className="h-12 rounded-xl bg-[#F34208] px-5 text-sm font-black text-white shadow-lg shadow-[#F34208]/20 disabled:opacity-70"
@@ -102,7 +157,7 @@ export default function CartDrawer() {
                 >
                   {loading ? "Đang tạo đơn..." : "Tiến hành đặt món"}
                 </button>
-                <button className="h-12 rounded-xl border border-[#F1E2CD] bg-white px-4 text-sm font-black text-[#B95A22]" onClick={clearCart}>
+                <button className="h-12 rounded-xl border border-[#F1E2CD] bg-white px-4 text-sm font-black text-[#B95A22]" onClick={clearAll}>
                   Xóa giỏ
                 </button>
               </div>

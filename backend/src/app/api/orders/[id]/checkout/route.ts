@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { corsHeaders, optionsResponse } from "@/lib/cors"
+import { authorize } from "@/lib/apiAuth"
+import { calculatePromotion, PromotionError } from "@/lib/promotion"
 
 export async function OPTIONS() { return optionsResponse() }
 
@@ -10,6 +12,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (!order) return NextResponse.json({ error: "Không tìm thấy đơn" }, { status: 404, headers: corsHeaders() })
 
   if (complete) {
+    const auth = authorize(req, ["STAFF", "ADMIN"])
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status, headers: corsHeaders() })
+    if (order.status === "COMPLETED") return NextResponse.json({ error: "Đơn hàng đã được thanh toán." }, { status: 409, headers: corsHeaders() })
     const paidAmount = receivedAmount == null ? order.finalAmount : Number(receivedAmount)
     if (!Number.isFinite(paidAmount) || paidAmount < order.finalAmount) {
       return NextResponse.json({ error: "Số tiền nhận phải lớn hơn hoặc bằng tổng tiền hóa đơn" }, { status: 400, headers: corsHeaders() })
@@ -45,26 +50,32 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       where: { id: params.id },
       data: { status: "COMPLETED" },
     })
+    if (order.promoCode) await prisma.promotion.update({ where: { code: order.promoCode }, data: { usageCount: { increment: 1 } } })
     return NextResponse.json(completed, { headers: corsHeaders() })
   }
 
+  const requestedPromoCode = promoCode || order.promoCode
   let discount = 0
-  if (promoCode) {
-    const promo = await prisma.promotion.findFirst({
-      where: { code: promoCode, isActive: true, startDate: { lte: new Date() }, endDate: { gte: new Date() } },
-    })
-    if (promo && order.totalAmount >= promo.minOrder) {
-      discount = promo.discountType === "PERCENTAGE"
-        ? (order.totalAmount * promo.discountValue) / 100
-        : promo.discountValue
-      if (promo.maxDiscount) discount = Math.min(discount, promo.maxDiscount)
+  let finalAmount = order.totalAmount
+  let appliedPromoCode: string | null = null
+  if (requestedPromoCode) {
+    const auth = authorize(req, ["CUSTOMER"])
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status, headers: corsHeaders() })
+    try {
+      const calculation = await calculatePromotion(requestedPromoCode, order.totalAmount)
+      discount = calculation.discount
+      finalAmount = calculation.finalAmount
+      appliedPromoCode = calculation.promo.code
+    } catch (error) {
+      if (error instanceof PromotionError) return NextResponse.json({ error: error.message }, { status: 400, headers: corsHeaders() })
+      throw error
     }
   }
 
   await prisma.table.update({ where: { id: order.tableId }, data: { status: "REQUESTING_BILL" } })
   const updated = await prisma.order.update({
     where: { id: params.id },
-    data: { discount, finalAmount: order.totalAmount - discount, promoCode: promoCode ?? null },
+    data: { discount, finalAmount, promoCode: appliedPromoCode },
   })
 
   await prisma.invoice.upsert({
