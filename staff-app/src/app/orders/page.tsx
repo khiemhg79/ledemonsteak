@@ -10,33 +10,46 @@ import { useAuth } from "@/store/auth"
 type ViewMode = "orders" | "items"
 
 const money = (value: number) => value.toLocaleString("vi-VN") + "đ"
+const nextStatus: Record<string, string> = { WAITING: "PREPARING", PREPARING: "DONE", DONE: "SERVED" }
+const actionLabel: Record<string, string> = { WAITING: "▶ Bắt đầu", PREPARING: "✓ Xong món", DONE: "✓ Đã phục vụ" }
+const statusLabel: Record<string, string> = { WAITING: "Chờ bắt đầu", PREPARING: "Đang chế biến", DONE: "Đã xong món", SERVED: "Đã phục vụ" }
 
 export default function OrdersPage() {
   const router = useRouter()
   const logout = useAuth((state) => state.logout)
+  const user = useAuth((state) => state.user)
   const [orders, setOrders] = useState<any[]>([])
   const [viewMode, setViewMode] = useState<ViewMode>("orders")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
 
-  async function loadOrders() {
-    setLoading(true)
+  async function loadOrders(silent = false) {
+    if (!silent) setLoading(true)
     setError("")
     try {
-      setOrders(await apiGet("/api/orders"))
+      setOrders(await apiGet("/api/orders?view=staff"))
     } catch (err) {
       setError(err instanceof Error ? err.message : "Không tải được đơn hàng.")
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }
 
   async function updateItem(orderId: string, itemId: string, status: string) {
-    await apiPatch(`/api/orders/${orderId}/items`, { itemId, status })
-    loadOrders()
+    setError("")
+    try {
+      await apiPatch(`/api/orders/${orderId}/items`, { itemId, status })
+      await loadOrders(true)
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Không cập nhật được trạng thái món ăn.")
+    }
   }
 
-  useEffect(() => { loadOrders() }, [])
+  useEffect(() => {
+    loadOrders()
+    const timer = window.setInterval(() => loadOrders(true), 5000)
+    return () => window.clearInterval(timer)
+  }, [])
 
   const flatItems = useMemo(() => orders.flatMap((order) => order.items.map((item: any) => ({ ...item, order }))), [orders])
 
@@ -46,7 +59,7 @@ export default function OrdersPage() {
         <div className="flex h-full items-center justify-between">
           <h1 className="text-xl font-black">Le Monde Steak</h1>
           <div className="flex items-center gap-4">
-            <span className="text-sm font-semibold">Xin chào, staff</span>
+            <span className="text-sm font-semibold">Xin chào, {user?.name ?? "staff"}</span>
             <button className="rounded-lg bg-white px-5 py-2 text-sm font-black text-[#E94713]" onClick={() => { logout(); router.push("/login") }}>Đăng xuất</button>
           </div>
         </div>
@@ -58,9 +71,10 @@ export default function OrdersPage() {
           <Link href="/orders" className="rounded-md bg-[#FF4A12] px-4 py-3 text-sm font-bold text-white shadow-sm">Theo dõi Đơn hàng</Link>
         </div>
 
-        <div className="mb-6 flex gap-2">
-          <button className={`rounded-md px-4 py-3 text-sm font-black shadow-sm ${viewMode === "orders" ? "bg-[#A855F7] text-white" : "bg-[#E8ECEF] text-[#57606A]"}`} onClick={() => setViewMode("orders")}>Xem theo Đơn hàng</button>
-          <button className={`rounded-md px-4 py-3 text-sm font-black shadow-sm ${viewMode === "items" ? "bg-[#A855F7] text-white" : "bg-[#E8ECEF] text-[#57606A]"}`} onClick={() => setViewMode("items")}>Xem theo Món ăn</button>
+        <div className="mb-6 flex items-center justify-between gap-3">
+          <div className="flex gap-2"><button className={`rounded-md px-4 py-3 text-sm font-black shadow-sm ${viewMode === "orders" ? "bg-[#A855F7] text-white" : "bg-[#E8ECEF] text-[#57606A]"}`} onClick={() => setViewMode("orders")}>Xem theo Đơn hàng</button>
+          <button className={`rounded-md px-4 py-3 text-sm font-black shadow-sm ${viewMode === "items" ? "bg-[#A855F7] text-white" : "bg-[#E8ECEF] text-[#57606A]"}`} onClick={() => setViewMode("items")}>Xem theo Món ăn</button></div>
+          <button className="rounded-md bg-[#FF4A12] px-4 py-3 text-sm font-black text-white" onClick={() => loadOrders()}>Làm mới</button>
         </div>
 
         {error && <div className="mb-4 rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>}
@@ -68,19 +82,21 @@ export default function OrdersPage() {
 
         {viewMode === "orders" ? (
           <div className="grid gap-5 lg:grid-cols-3">
-            {orders.map((order) => <OrderCard key={order.id} order={order} onChanged={loadOrders} />)}
+            {orders.map((order) => <OrderCard key={order.id} order={order} onChanged={() => loadOrders(true)} onError={setError} />)}
           </div>
         ) : (
           <div className="grid gap-4 lg:grid-cols-4">
             {flatItems.map((item: any) => {
               const label = item.item?.name ?? item.combo?.name
-              const next = item.status === "WAITING" ? "PREPARING" : item.status === "PREPARING" ? "DONE" : item.status === "DONE" ? "SERVED" : null
+              const next = nextStatus[item.status]
               return (
                 <article key={item.id} className="rounded-md border border-[#D9DEE6] bg-white p-4 shadow-md shadow-black/5">
                   <p className="text-sm font-bold text-[#536173]">Bàn {item.order.table?.number}</p>
-                  <h3 className="mt-1 line-clamp-2 font-black text-[#111827]">{label}</h3>
-                  <p className="mt-2 text-sm text-[#536173]">{money(item.price * item.quantity)}</p>
-                  {next && <button className="mt-4 rounded-md bg-[#2F80ED] px-3 py-2 text-xs font-black text-white" onClick={() => updateItem(item.order.id, item.id, next)}>Cập nhật</button>}
+                  <p className="mt-1 text-xs text-[#667085]">{new Date(item.order.createdAt).toLocaleTimeString("vi-VN")} {new Date(item.order.createdAt).toLocaleDateString("vi-VN")}</p>
+                  <div className="mt-2 flex flex-wrap items-center gap-2"><h3 className="line-clamp-2 font-black text-[#111827]">{item.quantity}x {label}</h3>{item.combo && <span className="rounded-full bg-[#DDF3FF] px-2 py-1 text-[10px] font-bold text-[#1683B8]">Combo</span>}</div>
+                  <p className="mt-2 text-sm font-bold text-[#536173]">{money(item.price * item.quantity)}</p>
+                  <p className="mt-2 text-xs font-semibold text-[#667085]">Trạng thái: {statusLabel[item.status] ?? item.status}</p>
+                  {next ? <button className="mt-4 rounded-md bg-[#2F80ED] px-3 py-2 text-xs font-black text-white" onClick={() => updateItem(item.order.id, item.id, next)}>{actionLabel[item.status]}</button> : <span className="mt-4 inline-block rounded-md bg-[#6B7280] px-3 py-2 text-xs font-black text-white">✓ Đã phục vụ</span>}
                 </article>
               )
             })}

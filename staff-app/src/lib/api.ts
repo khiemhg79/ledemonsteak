@@ -23,9 +23,17 @@ async function request(input: RequestInfo | URL, init?: RequestInit) {
   catch { throw new Error("Không thể kết nối hệ thống. Vui lòng kiểm tra Internet và thử lại.") }
 }
 
+function handleUnauthorized(res: Response, path: string) {
+  if (res.status !== 401 || path === "/api/auth/login" || typeof window === "undefined") return
+  localStorage.removeItem("token")
+  localStorage.removeItem("user")
+  window.location.assign("/login")
+}
+
 export async function apiGet(path: string, token?: string) {
   const currentToken = authToken(token)
   const res = await request(`${apiBase()}${path}`, { headers: currentToken ? { Authorization: `Bearer ${currentToken}` } : {} })
+  handleUnauthorized(res, path)
   if (!res.ok) throw new Error(await readError(res))
   return res.json()
 }
@@ -33,6 +41,7 @@ export async function apiGet(path: string, token?: string) {
 export async function apiPost(path: string, body: any, token?: string) {
   const currentToken = authToken(token)
   const res = await request(`${apiBase()}${path}`, { method: "POST", headers: { "Content-Type": "application/json", ...(currentToken ? { Authorization: `Bearer ${currentToken}` } : {}) }, body: JSON.stringify(body) })
+  handleUnauthorized(res, path)
   if (!res.ok) throw new Error(await readError(res))
   return res.json()
 }
@@ -40,6 +49,7 @@ export async function apiPost(path: string, body: any, token?: string) {
 export async function apiPatch(path: string, body: any, token?: string) {
   const currentToken = authToken(token)
   const res = await request(`${apiBase()}${path}`, { method: "PATCH", headers: { "Content-Type": "application/json", ...(currentToken ? { Authorization: `Bearer ${currentToken}` } : {}) }, body: JSON.stringify(body) })
+  handleUnauthorized(res, path)
   if (!res.ok) throw new Error(await readError(res))
   return res.json()
 }
@@ -47,6 +57,7 @@ export async function apiPatch(path: string, body: any, token?: string) {
 export async function apiDelete(path: string, token?: string) {
   const currentToken = authToken(token)
   const res = await request(`${apiBase()}${path}`, { method: "DELETE", headers: currentToken ? { Authorization: `Bearer ${currentToken}` } : {} })
+  handleUnauthorized(res, path)
   if (!res.ok) throw new Error(await readError(res))
   return res.json()
 }

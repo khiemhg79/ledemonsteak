@@ -4,6 +4,7 @@ type TableStatus = "EMPTY" | "OCCUPIED" | "REQUESTING_BILL"
 
 type TableGridProps = {
   tables: any[]
+  activeOrderTableIds: Set<string>
   onSelect: (table: any) => void
   onStatusChange: (tableId: string, status: TableStatus) => void
 }
@@ -31,7 +32,7 @@ function tableNumber(number: string) {
   return digits ? Number(digits) : number
 }
 
-export default function TableGrid({ tables, onSelect, onStatusChange }: TableGridProps) {
+export default function TableGrid({ tables, activeOrderTableIds, onSelect, onStatusChange }: TableGridProps) {
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
       {tables.map((table) => (
@@ -46,7 +47,11 @@ export default function TableGrid({ tables, onSelect, onStatusChange }: TableGri
             value={table.status}
             onChange={(e) => onStatusChange(table.id, e.target.value as TableStatus)}
           >
-            {statusOptions.map((option) => <option key={option.value} value={option.value} disabled={option.value === "EMPTY" && table.status !== "EMPTY"}>{option.label}</option>)}
+            {statusOptions.map((option) => {
+              const hasOrder = activeOrderTableIds.has(table.id)
+              const disabled = option.value === "EMPTY" ? hasOrder : !hasOrder && option.value !== table.status
+              return <option key={option.value} value={option.value} disabled={disabled}>{option.label}</option>
+            })}
           </select>
         </article>
       ))}

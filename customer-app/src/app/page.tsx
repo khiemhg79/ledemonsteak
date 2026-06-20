@@ -53,7 +53,7 @@ export default function HomePage() {
   useEffect(() => {
     setLoading(true)
     setError("")
-    Promise.all([apiGet("/api/menu"), apiGet("/api/tables")])
+    Promise.all([apiGet("/api/menu"), apiGet("/api/public/tables")])
       .then(([menu, tableList]) => {
         setCategories(menu.categories ?? [])
         setDishes(menu.dishes ?? [])

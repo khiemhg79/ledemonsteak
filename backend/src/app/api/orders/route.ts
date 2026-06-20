@@ -92,6 +92,13 @@ export async function POST(req: NextRequest) {
 export async function GET(req: NextRequest) {
   const tableId = req.nextUrl.searchParams.get("tableId")
   const status  = req.nextUrl.searchParams.get("status")
+  const staffView = req.nextUrl.searchParams.get("view") === "staff"
+  if (staffView) {
+    const auth = authorize(req, ["STAFF", "ADMIN"])
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status, headers: corsHeaders() })
+  } else if (!tableId) {
+    return NextResponse.json({ error: "Mã bàn là bắt buộc." }, { status: 400, headers: corsHeaders() })
+  }
   const where: any = {}
   if (tableId) where.tableId = tableId
   if (status && status !== "ALL") where.status = status
@@ -99,7 +106,7 @@ export async function GET(req: NextRequest) {
   const orders = await prisma.order.findMany({
     where,
     include: { details: { include: { item: true, combo: true } }, table: true },
-    orderBy: { createdAt: "desc" },
+    orderBy: { createdAt: staffView ? "asc" : "desc" },
   })
   return NextResponse.json(orders.map((order) => ({ ...order, items: order.details })), { headers: corsHeaders() })
 }

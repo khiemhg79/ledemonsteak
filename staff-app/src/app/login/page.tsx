@@ -18,7 +18,7 @@ export default function StaffLoginPage() {
       const data = await apiPost("/api/auth/login", { phone, password })
       if (!["STAFF", "ADMIN"].includes(data.user.role)) throw new Error("Tài khoản không có quyền nhân viên.")
       login(data.user, data.token)
-      router.push("/orders")
+      router.push("/tables")
     } catch (error: any) {
       setMessage(error.message || "Đăng nhập thất bại.")
     }

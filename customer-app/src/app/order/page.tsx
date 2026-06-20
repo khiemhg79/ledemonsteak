@@ -31,6 +31,7 @@ export default function OrderPage() {
   const order = orders[0]
 
   async function loadOrders(clearMessage = true) {
+    if (!tableId) { setOrders([]); setLoading(false); return }
     setLoading(true)
     if (clearMessage) setMessage("")
     try {

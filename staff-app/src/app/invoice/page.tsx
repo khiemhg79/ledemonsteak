@@ -12,17 +12,18 @@ const money = (value: number) => Number(value || 0).toLocaleString("vi-VN") + "�
 export default function InvoicePage() {
   const router = useRouter()
   const logout = useAuth((state) => state.logout)
+  const user = useAuth((state) => state.user)
   const [orders, setOrders] = useState<any[]>([])
   const [selected, setSelected] = useState<any | null>(null)
   const [error, setError] = useState("")
   const requesting = useMemo(() => orders.filter((order) => order.table?.status === "REQUESTING_BILL"), [orders])
 
-  async function loadOrders() { setError(""); try { setOrders(await apiGet("/api/orders")) } catch (err) { setError(err instanceof Error ? err.message : "Không tải được hóa đơn.") } }
+  async function loadOrders() { setError(""); try { setOrders(await apiGet("/api/orders?view=staff")) } catch (err) { setError(err instanceof Error ? err.message : "Không tải được hóa đơn.") } }
   function completed() { setSelected(null); loadOrders() }
   useEffect(() => { loadOrders(); const timer = window.setInterval(loadOrders, 5000); return () => window.clearInterval(timer) }, [])
 
   return <main className="min-h-screen bg-[#F7F7F7]">
-    <header className="mx-6 mt-2 h-16 bg-[linear-gradient(90deg,#FF7A2A,#FF3D00)] px-16 text-white shadow-md"><div className="flex h-full items-center justify-between"><h1 className="text-xl font-black">Le Monde Steak</h1><div className="flex items-center gap-4"><span className="text-sm font-semibold">Xin chào, staff</span><button className="rounded-lg bg-white px-5 py-2 text-sm font-black text-[#E94713]" onClick={() => { logout(); router.push("/login") }}>Đăng xuất</button></div></div></header>
+    <header className="mx-6 mt-2 h-16 bg-[linear-gradient(90deg,#FF7A2A,#FF3D00)] px-16 text-white shadow-md"><div className="flex h-full items-center justify-between"><h1 className="text-xl font-black">Le Monde Steak</h1><div className="flex items-center gap-4"><span className="text-sm font-semibold">Xin chào, {user?.name ?? "staff"}</span><button className="rounded-lg bg-white px-5 py-2 text-sm font-black text-[#E94713]" onClick={() => { logout(); router.push("/login") }}>Đăng xuất</button></div></div></header>
     <section className="mx-auto max-w-[1180px] px-8 py-6">
       <div className="mb-6 flex gap-2"><Link href="/tables" className="rounded-md bg-[#E8ECEF] px-4 py-3 text-sm font-bold text-[#57606A]">Quản lý Bàn</Link><Link href="/orders" className="rounded-md bg-[#E8ECEF] px-4 py-3 text-sm font-bold text-[#57606A]">Theo dõi Đơn hàng</Link><Link href="/invoice" className="rounded-md bg-[#FF4A12] px-4 py-3 text-sm font-bold text-white">Thanh toán</Link></div>
       <div className="mb-6 flex items-center justify-between"><div><h2 className="text-2xl font-black text-[#111]">Thanh toán</h2><p className="text-sm text-[#667085]">Danh sách bàn đang yêu cầu thanh toán.</p></div><button className="rounded-md bg-[#FF4A12] px-5 py-3 text-sm font-bold text-white" onClick={loadOrders}>Làm mới</button></div>

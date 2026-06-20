@@ -5,6 +5,7 @@ import { apiPatch } from "@/lib/api"
 type OrderCardProps = {
   order: any
   onChanged: () => void
+  onError: (message: string) => void
 }
 
 const nextStatus: Record<string, string> = {
@@ -32,10 +33,14 @@ function tableNumber(number?: string) {
   return digits ? Number(digits) : number
 }
 
-export default function OrderCard({ order, onChanged }: OrderCardProps) {
+export default function OrderCard({ order, onChanged, onError }: OrderCardProps) {
   async function updateItem(itemId: string, status: string) {
-    await apiPatch(`/api/orders/${order.id}/items`, { itemId, status })
-    onChanged()
+    try {
+      await apiPatch(`/api/orders/${order.id}/items`, { itemId, status })
+      onChanged()
+    } catch (error) {
+      onError(error instanceof Error ? error.message : "Không cập nhật được trạng thái món ăn.")
+    }
   }
 
   return (
@@ -52,7 +57,7 @@ export default function OrderCard({ order, onChanged }: OrderCardProps) {
             <div key={item.id} className="grid grid-cols-[1fr_auto] gap-3 py-3">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <p className="font-black text-[#111827]">1x {label}</p>
+                  <p className="font-black text-[#111827]">{item.quantity}x {label}</p>
                   {isCombo && <span className="rounded-full bg-[#DDF3FF] px-2 py-1 text-[10px] font-bold text-[#1683B8]">Combo</span>}
                 </div>
                 <p className="mt-2 text-sm text-[#536173]">{money(item.price * item.quantity)}</p>
