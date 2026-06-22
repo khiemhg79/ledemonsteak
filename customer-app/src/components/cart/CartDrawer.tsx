@@ -19,7 +19,7 @@ export default function CartDrawer() {
   const [discount, setDiscount] = useState(0)
   const [finalAmount, setFinalAmount] = useState<number | null>(null)
   const [applyingCode, setApplyingCode] = useState("")
-  const { items, tableId, updateQty, removeItem, clearCart, total } = useCart()
+  const { items, tableId, qrToken, updateQty, removeItem, clearCart, total } = useCart()
   const user = useAuth((s) => s.user)
   const subtotal = total()
 
@@ -68,10 +68,11 @@ export default function CartDrawer() {
 
     setLoading(true)
     try {
-      if (!tableId) throw new Error("Bạn cần quét mã QR tại bàn trước khi đặt món.")
+      if (!tableId || !qrToken) throw new Error("Bạn cần quét mã QR còn hiệu lực tại bàn trước khi đặt món.")
 
       const order = await apiPost("/api/orders", {
         tableId,
+        qrToken,
         userId: user?.id,
         promoCode: promoCode || undefined,
         items: items.map((item) => ({

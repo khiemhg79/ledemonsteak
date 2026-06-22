@@ -3,14 +3,21 @@ import { prisma } from "@/lib/prisma"
 import { corsHeaders, optionsResponse } from "@/lib/cors"
 import { authorize } from "@/lib/apiAuth"
 import { calculatePromotion, PromotionError } from "@/lib/promotion"
+import { qrTokenError, verifyTableQrToken } from "@/lib/qrToken"
 
 export async function OPTIONS() { return optionsResponse() }
 
 export async function POST(req: NextRequest) {
   try {
-    const { tableId, userId, items, promoCode } = await req.json()
+    const { tableId, userId, items, promoCode, qrToken } = await req.json()
     if (!tableId || !Array.isArray(items) || items.length === 0) {
       return NextResponse.json({ error: "Bàn và danh sách món là bắt buộc." }, { status: 400, headers: corsHeaders() })
+    }
+
+    try {
+      verifyTableQrToken(String(qrToken ?? ""), String(tableId))
+    } catch (error) {
+      return NextResponse.json({ error: qrTokenError(error) }, { status: 401, headers: corsHeaders() })
     }
 
     const normalizedItems = items.map((item: any) => ({

@@ -4,7 +4,7 @@ import Link from "next/link"
 import { useEffect, useMemo, useState } from "react"
 import CartDrawer from "@/components/cart/CartDrawer"
 import DishCard from "@/components/menu/DishCard"
-import { apiGet } from "@/lib/api"
+import { apiGet, apiPost } from "@/lib/api"
 import { useAuth } from "@/store/auth"
 import { useCart } from "@/store/cart"
 
@@ -29,6 +29,7 @@ function tableLabel(tableId: string | null, table?: RestaurantTable) {
 
 export default function HomePage() {
   const [qrTableId, setQrTableId] = useState<string | null>(null)
+  const [scannedQrToken, setScannedQrToken] = useState<string | null>(null)
   const [categories, setCategories] = useState<Category[]>([])
   const [dishes, setDishes] = useState<Dish[]>([])
   const [combos, setCombos] = useState<Combo[]>([])
@@ -38,7 +39,7 @@ export default function HomePage() {
   const [error, setError] = useState("")
   const [tables, setTables] = useState<RestaurantTable[]>([])
   const [tableError, setTableError] = useState("")
-  const { tableId, setTableId, clearTableId, items, hydrate: hydrateCart } = useCart()
+  const { tableId, qrToken, setTableId, clearTableId, items, hydrate: hydrateCart } = useCart()
   const user = useAuth((s) => s.user)
   const logout = useAuth((s) => s.logout)
   const hydrateAuth = useAuth((s) => s.hydrate)
@@ -46,27 +47,36 @@ export default function HomePage() {
   useEffect(() => {
     hydrateAuth()
     hydrateCart()
-    const scannedTableId = new URLSearchParams(window.location.search).get("tableId")
-    setQrTableId(scannedTableId)
+    const params = new URLSearchParams(window.location.search)
+    setQrTableId(params.get("tableId"))
+    setScannedQrToken(params.get("qrToken"))
   }, [hydrateAuth, hydrateCart])
 
   useEffect(() => {
     setLoading(true)
     setError("")
     Promise.all([apiGet("/api/menu"), apiGet("/api/public/tables")])
-      .then(([menu, tableList]) => {
+      .then(async ([menu, tableList]) => {
         setCategories(menu.categories ?? [])
         setDishes(menu.dishes ?? [])
         setCombos(menu.combos ?? [])
         setTables(tableList ?? [])
         const availableTables = tableList ?? []
-        if (qrTableId) {
-          if (availableTables.some((table: RestaurantTable) => table.id === qrTableId)) {
-            setTableId(qrTableId)
-            setTableError("")
-          } else {
+        const candidateTableId = qrTableId ?? tableId
+        const candidateQrToken = qrTableId ? scannedQrToken : qrToken
+        if (candidateTableId) {
+          if (!candidateQrToken || !availableTables.some((table: RestaurantTable) => table.id === candidateTableId)) {
             clearTableId()
             setTableError("Mã QR bàn không hợp lệ. Vui lòng quét lại mã tại bàn.")
+            return
+          }
+          try {
+            await apiPost("/api/public/qr/validate", { tableId: candidateTableId, qrToken: candidateQrToken })
+            if (tableId !== candidateTableId || qrToken !== candidateQrToken) setTableId(candidateTableId, candidateQrToken)
+            setTableError("")
+          } catch (error: any) {
+            clearTableId()
+            setTableError(error.message || "Mã QR không hợp lệ hoặc đã hết hạn.")
           }
         } else if (tableId && !availableTables.some((table: RestaurantTable) => table.id === tableId)) {
           clearTableId()
@@ -77,7 +87,7 @@ export default function HomePage() {
       })
       .catch((err) => setError(err.message || "Không tải được thực đơn."))
       .finally(() => setLoading(false))
-  }, [qrTableId, tableId, setTableId, clearTableId])
+  }, [qrTableId, scannedQrToken, tableId, qrToken, setTableId, clearTableId])
 
   const currentTable = tables.find((table) => table.id === tableId)
 

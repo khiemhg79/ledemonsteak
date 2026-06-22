@@ -11,9 +11,10 @@ export interface CartItem {
 
 interface CartStore {
   tableId: string | null
+  qrToken: string | null
   items: CartItem[]
   hydrate: () => void
-  setTableId: (id: string) => void
+  setTableId: (id: string, qrToken: string) => void
   clearTableId: () => void
   addItem: (item: Omit<CartItem, "quantity">) => void
   removeItem: (id: string) => void
@@ -24,18 +25,19 @@ interface CartStore {
 
 export const useCart = create<CartStore>((set, get) => ({
   tableId: null,
+  qrToken: null,
   items: [],
   hydrate: () => {
     if (typeof window === "undefined") return
-    set({ tableId: localStorage.getItem("tableId") })
+    set({ tableId: localStorage.getItem("tableId"), qrToken: localStorage.getItem("qrToken") })
   },
-  setTableId: (id) => {
-    if (typeof window !== "undefined") localStorage.setItem("tableId", id)
-    set((state) => ({ tableId: id, items: state.tableId && state.tableId !== id ? [] : state.items }))
+  setTableId: (id, qrToken) => {
+    if (typeof window !== "undefined") { localStorage.setItem("tableId", id); localStorage.setItem("qrToken", qrToken) }
+    set((state) => ({ tableId: id, qrToken, items: state.tableId && state.tableId !== id ? [] : state.items }))
   },
   clearTableId: () => {
-    if (typeof window !== "undefined") localStorage.removeItem("tableId")
-    set({ tableId: null, items: [] })
+    if (typeof window !== "undefined") { localStorage.removeItem("tableId"); localStorage.removeItem("qrToken") }
+    set({ tableId: null, qrToken: null, items: [] })
   },
   addItem: (item) => {
     const exists = get().items.find((i) => i.id === item.id)

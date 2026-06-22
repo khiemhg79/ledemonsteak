@@ -15,43 +15,57 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     const auth = authorize(req, ["STAFF", "ADMIN"])
     if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status, headers: corsHeaders() })
     if (order.status === "COMPLETED") return NextResponse.json({ error: "Đơn hàng đã được thanh toán." }, { status: 409, headers: corsHeaders() })
+    const allowedMethods = ["CASH", "BANK_TRANSFER", "CARD", "E_WALLET"] as const
+    const selectedMethod = allowedMethods.includes(paymentMethod) ? paymentMethod : "CASH"
     const paidAmount = receivedAmount == null ? order.finalAmount : Number(receivedAmount)
     if (!Number.isFinite(paidAmount) || paidAmount < order.finalAmount) {
       return NextResponse.json({ error: "Số tiền nhận phải lớn hơn hoặc bằng tổng tiền hóa đơn" }, { status: 400, headers: corsHeaders() })
     }
-    const invoice = order.invoice ?? await prisma.invoice.create({
-      data: {
-        invoiceCode: `INV-${order.id.slice(-8).toUpperCase()}`,
-        orderId: order.id,
-        customerId: order.customerId,
-        tableId: order.tableId,
-        subtotal: order.totalAmount,
-        discount: order.discount,
-        total: order.finalAmount,
-      },
+    const paidAt = new Date()
+    const result = await prisma.$transaction(async (tx) => {
+      const invoice = order.invoice ?? await tx.invoice.create({
+        data: {
+          invoiceCode: `INV-${order.id.slice(-8).toUpperCase()}`,
+          orderId: order.id,
+          customerId: order.customerId,
+          tableId: order.tableId,
+          subtotal: order.totalAmount,
+          discount: order.discount,
+          total: order.finalAmount,
+        },
+      })
+      const paidInvoice = await tx.invoice.update({
+        where: { id: invoice.id },
+        data: { status: "PAID", paidAt },
+      })
+      const payment = await tx.payment.create({
+        data: {
+          invoiceId: invoice.id,
+          orderId: order.id,
+          method: selectedMethod,
+          amount: paidAmount,
+          status: "SUCCESS",
+          paidAt,
+        },
+      })
+      await tx.table.update({ where: { id: order.tableId }, data: { status: "EMPTY" } })
+      await tx.order.update({ where: { id: params.id }, data: { status: "COMPLETED" } })
+      if (order.promoCode) await tx.promotion.update({ where: { code: order.promoCode }, data: { usageCount: { increment: 1 } } })
+      const completedOrder = await tx.order.findUnique({
+        where: { id: params.id },
+        include: { table: true, customer: { include: { user: true } }, details: { include: { item: true, combo: true } } },
+      })
+      return {
+        invoice: paidInvoice,
+        payment,
+        order: completedOrder ? { ...completedOrder, items: completedOrder.details } : null,
+      }
     })
-
-    await prisma.invoice.update({
-      where: { id: invoice.id },
-      data: { status: "PAID", paidAt: new Date() },
-    })
-    await prisma.payment.create({
-      data: {
-        invoiceId: invoice.id,
-        orderId: order.id,
-        method: paymentMethod ?? "CASH",
-        amount: paidAmount,
-        status: "SUCCESS",
-        paidAt: new Date(),
-      },
-    })
-    await prisma.table.update({ where: { id: order.tableId }, data: { status: "EMPTY" } })
-    const completed = await prisma.order.update({
-      where: { id: params.id },
-      data: { status: "COMPLETED" },
-    })
-    if (order.promoCode) await prisma.promotion.update({ where: { code: order.promoCode }, data: { usageCount: { increment: 1 } } })
-    return NextResponse.json(completed, { headers: corsHeaders() })
+    return NextResponse.json({
+      ...result,
+      receivedAmount: paidAmount,
+      changeAmount: paidAmount - order.finalAmount,
+    }, { headers: corsHeaders() })
   }
 
   const requestedPromoCode = promoCode || order.promoCode
