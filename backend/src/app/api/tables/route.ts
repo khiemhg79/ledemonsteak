@@ -1,22 +1,59 @@
 import { NextRequest, NextResponse } from "next/server"
-import { prisma } from "@/lib/prisma"
-import { corsHeaders, optionsResponse } from "@/lib/cors"
 import { authorize } from "@/lib/apiAuth"
+import { corsHeaders, optionsResponse } from "@/lib/cors"
+import { prisma } from "@/lib/prisma"
 
-export async function OPTIONS() { return optionsResponse() }
+const tableStatuses = ["EMPTY", "OCCUPIED", "REQUESTING_BILL"] as const
+
+function authError(req: NextRequest, roles: string[]) {
+  const auth = authorize(req, roles)
+  if (!auth.ok) return { response: NextResponse.json({ error: auth.error }, { status: auth.status, headers: corsHeaders() }) }
+  return { auth }
+}
+
+function cleanTableNumber(value: unknown) {
+  return String(value ?? "").trim().replace(/\s+/g, "").slice(0, 10).toUpperCase()
+}
+
+function buildTablePayload(body: any) {
+  const number = cleanTableNumber(body.number)
+  const capacity = Number(body.capacity)
+  const status = String(body.status ?? "EMPTY")
+  const isActive = body.isActive !== false
+
+  if (!number) return { error: "Vui lòng nhập số bàn." }
+  if (!/^[A-Z0-9_-]{1,10}$/.test(number)) return { error: "Số bàn chỉ được gồm chữ, số, dấu gạch ngang hoặc gạch dưới." }
+  if (!Number.isInteger(capacity) || capacity <= 0) return { error: "Sức chứa phải là số nguyên lớn hơn 0." }
+  if (!tableStatuses.includes(status as any)) return { error: "Trạng thái bàn không hợp lệ." }
+
+  return { data: { number, capacity, status: status as typeof tableStatuses[number], isActive } }
+}
+
+export async function OPTIONS() {
+  return optionsResponse()
+}
+
 export async function GET(req: NextRequest) {
-  const auth = authorize(req, ["STAFF", "ADMIN"])
-  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status, headers: corsHeaders() })
-  const tables = await prisma.table.findMany({ where: { isActive: true }, orderBy: { number: "asc" } })
+  const checked = authError(req, ["STAFF", "ADMIN"])
+  if (checked.response) return checked.response
+
+  const tables = await prisma.table.findMany({
+    where: { isActive: true },
+    orderBy: { number: "asc" },
+  })
   return NextResponse.json(tables, { headers: corsHeaders() })
 }
+
 export async function POST(req: NextRequest) {
-  const auth = authorize(req, ["ADMIN"])
-  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status, headers: corsHeaders() })
-  const { number, capacity } = await req.json()
-  if (!String(number ?? "").trim() || !Number.isInteger(Number(capacity)) || Number(capacity) < 1) {
-    return NextResponse.json({ error: "Tên bàn và sức chứa hợp lệ là bắt buộc." }, { status: 400, headers: corsHeaders() })
-  }
-  const table = await prisma.table.create({ data: { number: String(number).trim(), capacity: Number(capacity) } })
+  const checked = authError(req, ["ADMIN"])
+  if (checked.response) return checked.response
+
+  const parsed = buildTablePayload(await req.json())
+  if (parsed.error || !parsed.data) return NextResponse.json({ error: parsed.error }, { status: 400, headers: corsHeaders() })
+
+  const existed = await prisma.table.findUnique({ where: { number: parsed.data.number }, select: { id: true } })
+  if (existed) return NextResponse.json({ error: "Số bàn đã tồn tại trong hệ thống." }, { status: 409, headers: corsHeaders() })
+
+  const table = await prisma.table.create({ data: parsed.data })
   return NextResponse.json(table, { status: 201, headers: corsHeaders() })
 }
