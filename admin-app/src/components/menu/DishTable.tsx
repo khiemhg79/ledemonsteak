@@ -1,16 +1,17 @@
 "use client"
 
-import { FormEvent, useEffect, useMemo, useState } from "react"
+import { Fragment, FormEvent, useEffect, useMemo, useState } from "react"
 import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/api"
 import Modal from "@/components/ui/Modal"
 
 type Tab = "dishes" | "combos" | "categories"
 type Category = { id: string; name: string; desc?: string | null; sortOrder: number; isActive: boolean; count?: number }
 type Dish = { id: string; name: string; price: number; description?: string | null; image?: string | null; categoryId: string; category?: Category; isActive: boolean }
-type Combo = { id: string; name: string; price: number; description?: string | null; image?: string | null; isActive: boolean }
+type ComboItem = { id?: string; itemId: string; quantity: number; item?: Dish }
+type Combo = { id: string; name: string; price: number; description?: string | null; image?: string | null; isActive: boolean; items?: ComboItem[] }
 
 type DishForm = { name: string; price: string; description: string; image: string; categoryId: string; isActive: boolean }
-type ComboForm = { name: string; price: string; description: string; image: string; isActive: boolean }
+type ComboForm = { name: string; price: string; description: string; image: string; isActive: boolean; items: ComboItem[] }
 type CategoryForm = { name: string; desc: string; sortOrder: string; isActive: boolean }
 
 const tabs: { id: Tab; label: string }[] = [
@@ -42,6 +43,8 @@ export default function DishTable() {
   const [data, setData] = useState<{ dishes: Dish[]; combos: Combo[]; categories: Category[] }>({ dishes: [], combos: [], categories: [] })
   const [editing, setEditing] = useState<Dish | Combo | Category | null>(null)
   const [deleting, setDeleting] = useState<Dish | Combo | Category | null>(null)
+  const [expandedCombos, setExpandedCombos] = useState<Record<string, boolean>>({})
+  const [comboPick, setComboPick] = useState({ itemId: "", quantity: "1" })
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState("")
@@ -60,11 +63,11 @@ export default function DishTable() {
     loadMenu()
   }, [])
 
+  const activeDishes = useMemo(() => data.dishes.filter((dish) => dish.isActive), [data.dishes])
   const categoriesWithCount = useMemo(
     () => data.categories.map((cat) => ({ ...cat, count: data.dishes.filter((dish) => dish.categoryId === cat.id && dish.isActive).length })),
     [data],
   )
-
   const rows = tab === "dishes" ? data.dishes : tab === "combos" ? data.combos : categoriesWithCount
 
   const validation = useMemo(() => {
@@ -72,7 +75,7 @@ export default function DishTable() {
       const dishForm = form as DishForm
       const price = Number(dishForm.price)
       return [
-        !(dishForm.name ?? "").trim() ? "Vui lòng nhập tên món ăn." : "",
+        !dishForm.name.trim() ? "Vui lòng nhập tên món ăn." : "",
         !dishForm.price || !Number.isFinite(price) || price <= 0 ? "Giá món ăn không hợp lệ." : "",
         price > 999999999 ? "Giá món ăn tối đa 999.999.999đ." : "",
         !dishForm.categoryId ? "Vui lòng chọn danh mục." : "",
@@ -82,25 +85,27 @@ export default function DishTable() {
       const comboForm = form as ComboForm
       const price = Number(comboForm.price)
       return [
-        !(comboForm.name ?? "").trim() ? "Vui lòng nhập tên combo." : "",
+        !comboForm.name.trim() ? "Vui lòng nhập tên combo." : "",
         !comboForm.price || !Number.isFinite(price) || price <= 0 ? "Giá combo không hợp lệ." : "",
+        price > 999999999 ? "Giá combo tối đa 999.999.999đ." : "",
       ].filter(Boolean)
     }
     const categoryForm = form as CategoryForm
-    return [!(categoryForm.name ?? "").trim() ? "Vui lòng nhập tên danh mục." : ""].filter(Boolean)
+    return [!categoryForm.name.trim() ? "Vui lòng nhập tên danh mục." : ""].filter(Boolean)
   }, [form, tab])
 
   function emptyForm() {
     if (tab === "dishes") {
       return { name: "", price: "", description: "", image: "", categoryId: data.categories.find((cat) => cat.isActive)?.id ?? "", isActive: true } satisfies DishForm
     }
-    if (tab === "combos") return { name: "", price: "", description: "", image: "", isActive: true } satisfies ComboForm
+    if (tab === "combos") return { name: "", price: "", description: "", image: "", isActive: true, items: [] } satisfies ComboForm
     return { name: "", desc: "", sortOrder: String(data.categories.length + 1), isActive: true } satisfies CategoryForm
   }
 
   function showCreate() {
     setEditing(null)
     setForm(emptyForm())
+    setComboPick({ itemId: activeDishes[0]?.id ?? "", quantity: "1" })
     setTouched(false)
     setMessage("")
     setOpen(true)
@@ -115,7 +120,15 @@ export default function DishTable() {
       setForm({ name: dish.name, price: String(dish.price), description: dish.description ?? "", image: dish.image ?? "", categoryId: dish.categoryId, isActive: dish.isActive })
     } else if (tab === "combos") {
       const combo = row as Combo
-      setForm({ name: combo.name, price: String(combo.price), description: combo.description ?? "", image: combo.image ?? "", isActive: combo.isActive })
+      setForm({
+        name: combo.name,
+        price: String(combo.price),
+        description: combo.description ?? "",
+        image: combo.image ?? "",
+        isActive: combo.isActive,
+        items: (combo.items ?? []).map((comboItem) => ({ itemId: comboItem.itemId, quantity: comboItem.quantity, item: comboItem.item })),
+      })
+      setComboPick({ itemId: activeDishes[0]?.id ?? "", quantity: "1" })
     } else {
       const category = row as Category
       setForm({ name: category.name, desc: category.desc ?? "", sortOrder: String(category.sortOrder ?? 0), isActive: category.isActive })
@@ -149,6 +162,7 @@ export default function DishTable() {
         description: comboForm.description.trim(),
         image: comboForm.image.trim(),
         isActive: comboForm.isActive,
+        items: comboForm.items.map((item) => ({ itemId: item.itemId, quantity: item.quantity })),
       }
     }
     const categoryForm = form as CategoryForm
@@ -188,7 +202,7 @@ export default function DishTable() {
       await apiDelete(pathFor(deleting))
       setDeleting(null)
       await loadMenu()
-      setMessage(tab === "dishes" ? "Đã xóa món ăn khỏi danh sách hoạt động." : "Đã xóa dữ liệu khỏi danh sách hoạt động.")
+      setMessage(tab === "combos" ? "Đã xóa combo khỏi danh sách hoạt động." : tab === "dishes" ? "Đã xóa món ăn khỏi danh sách hoạt động." : "Đã xóa dữ liệu khỏi danh sách hoạt động.")
     } catch (error: any) {
       setMessage(error.message)
     } finally {
@@ -200,7 +214,7 @@ export default function DishTable() {
     const file = fileList?.[0]
     if (!file) return
     if (!["image/png", "image/jpeg"].includes(file.type)) {
-      setMessage("Ảnh món ăn chỉ hỗ trợ định dạng png, jpg, jpeg.")
+      setMessage("Ảnh chỉ hỗ trợ định dạng png, jpg, jpeg.")
       return
     }
     if (file.size > 3 * 1024 * 1024) {
@@ -215,6 +229,24 @@ export default function DishTable() {
     })
     setForm((current: any) => ({ ...current, image }))
     setMessage("")
+  }
+
+  function addComboItem() {
+    if (tab !== "combos" || !comboPick.itemId) return
+    const dish = activeDishes.find((item) => item.id === comboPick.itemId)
+    const quantity = Math.max(1, Number(comboPick.quantity || 1))
+    setForm((current: any) => {
+      const items: ComboItem[] = current.items ?? []
+      const existed = items.find((item) => item.itemId === comboPick.itemId)
+      if (existed) {
+        return { ...current, items: items.map((item) => item.itemId === comboPick.itemId ? { ...item, quantity: item.quantity + quantity, item: dish } : item) }
+      }
+      return { ...current, items: [...items, { itemId: comboPick.itemId, quantity, item: dish }] }
+    })
+  }
+
+  function removeComboItem(itemId: string) {
+    setForm((current: any) => ({ ...current, items: (current.items ?? []).filter((item: ComboItem) => item.itemId !== itemId) }))
   }
 
   return (
@@ -250,100 +282,144 @@ export default function DishTable() {
             {rows.length === 0 ? (
               <tr><td className="p-6 text-center text-[#9AA8BF]" colSpan={6}>Không có dữ liệu phù hợp.</td></tr>
             ) : rows.map((row: any, index: number) => (
-              <tr key={row.id} className="border-t border-[#132033]">
-                <td className="p-4">{index + 1}</td>
-                <td className="font-semibold">{row.name}</td>
-                {tab !== "categories" && <td>{money(row.price)}</td>}
-                {tab === "dishes" && <td>{row.category?.name ?? "Chưa có"}</td>}
-                {tab === "categories" && <td>{row.count ?? 0}</td>}
-                <td><span className={row.isActive ? "admin-active" : "admin-inactive"}>{activeLabel(Boolean(row.isActive))}</span></td>
-                <td className="pr-5 text-right">
-                  <button className="admin-edit" onClick={() => showEdit(row)}>Sửa</button>
-                  {row.isActive && <button className="admin-delete" onClick={() => setDeleting(row)}>Xóa</button>}
-                </td>
-              </tr>
+              <Fragment key={row.id}>
+                <tr key={row.id} className="border-t border-[#132033]">
+                  <td className="p-4">{index + 1}</td>
+                  <td className="font-semibold">{row.name}</td>
+                  {tab !== "categories" && <td>{money(row.price)}</td>}
+                  {tab === "dishes" && <td>{row.category?.name ?? "Chưa có"}</td>}
+                  {tab === "categories" && <td>{row.count ?? 0}</td>}
+                  <td><span className={row.isActive ? "admin-active" : "admin-inactive"}>{activeLabel(Boolean(row.isActive))}</span></td>
+                  <td className="pr-5 text-right">
+                    {tab === "combos" && <button className="admin-edit" onClick={() => setExpandedCombos((current) => ({ ...current, [row.id]: !current[row.id] }))}>⌄</button>}
+                    <button className="admin-edit" onClick={() => showEdit(row)}>Sửa</button>
+                    {row.isActive && <button className="admin-delete" onClick={() => setDeleting(row)}>Xóa</button>}
+                  </td>
+                </tr>
+                {tab === "combos" && expandedCombos[row.id] && (
+                  <tr key={`${row.id}-items`} className="border-t border-[#132033] bg-[#050918]">
+                    <td />
+                    <td colSpan={5} className="px-4 py-3 text-sm text-[#B9D4FF]">
+                      {(row.items ?? []).length === 0 ? "Combo chưa có món nào." : (row.items ?? []).map((comboItem: ComboItem) => (
+                        <span key={comboItem.itemId} className="mr-3 inline-flex rounded-full border border-[#263756] bg-[#0B1427] px-3 py-1">
+                          {comboItem.quantity}x {comboItem.item?.name ?? comboItem.itemId}
+                        </span>
+                      ))}
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
             ))}
           </tbody>
         </table>
       </div>
 
       <Modal open={open} title={`${editing ? "Sửa" : "Thêm"} ${tab === "dishes" ? "món ăn" : tab === "combos" ? "combo" : "danh mục"}`} onClose={() => setOpen(false)}>
-        <form className="grid gap-4" onSubmit={save}>
-          <label className="admin-field">
-            {tab === "dishes" ? "Tên món ăn" : tab === "combos" ? "Tên combo" : "Tên danh mục"}
-            <input
-              value={(form as any).name ?? ""}
-              onBlur={() => setForm((current: any) => ({ ...current, name: current.name.trim() }))}
-              onChange={(e) => setForm((current: any) => ({ ...current, name: cleanText(e.target.value, 50) }))}
-              maxLength={50}
-              required
-            />
-          </label>
-
-          {tab !== "categories" && (
+        <form className={`grid gap-4 ${tab === "combos" ? "md:grid-cols-2" : ""}`} onSubmit={save}>
+          <section className="grid gap-4">
             <label className="admin-field">
-              Giá
-              <input inputMode="numeric" value={(form as DishForm | ComboForm).price ?? ""} onChange={(e) => setForm((current: any) => ({ ...current, price: cleanNumber(e.target.value, 9) }))} maxLength={9} required />
+              {tab === "dishes" ? "Tên món ăn" : tab === "combos" ? "Tên combo" : "Tên danh mục"}
+              <input value={(form as any).name ?? ""} onBlur={() => setForm((current: any) => ({ ...current, name: current.name.trim() }))} onChange={(e) => setForm((current: any) => ({ ...current, name: cleanText(e.target.value, 50) }))} maxLength={50} required />
             </label>
-          )}
 
-          {tab === "dishes" && (
-            <label className="admin-field">
-              Danh mục
-              <select value={(form as DishForm).categoryId ?? ""} onChange={(e) => setForm((current: any) => ({ ...current, categoryId: e.target.value }))} required>
-                <option value="">Chọn danh mục</option>
-                {data.categories.filter((cat) => cat.isActive).map((cat) => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
-              </select>
+            {tab !== "categories" && (
+              <label className="admin-field">
+                Giá
+                <input inputMode="numeric" value={(form as DishForm | ComboForm).price ?? ""} onChange={(e) => setForm((current: any) => ({ ...current, price: cleanNumber(e.target.value, 9) }))} maxLength={9} required />
+              </label>
+            )}
+
+            {tab === "dishes" && (
+              <label className="admin-field">
+                Danh mục
+                <select value={(form as DishForm).categoryId ?? ""} onChange={(e) => setForm((current: any) => ({ ...current, categoryId: e.target.value }))} required>
+                  <option value="">Chọn danh mục</option>
+                  {data.categories.filter((cat) => cat.isActive).map((cat) => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
+                </select>
+              </label>
+            )}
+
+            {tab !== "categories" && (
+              <>
+                <label className="admin-field">
+                  Mô tả
+                  <textarea rows={3} value={(form as DishForm | ComboForm).description ?? ""} onChange={(e) => setForm((current: any) => ({ ...current, description: e.target.value.slice(0, 500) }))} />
+                </label>
+                <label className="admin-field">
+                  Hình ảnh
+                  <input value={(form as DishForm | ComboForm).image ?? ""} onChange={(e) => setForm((current: any) => ({ ...current, image: e.target.value }))} placeholder="Dán URL Cloudinary hoặc chọn ảnh" />
+                </label>
+                <label className="admin-field">
+                  Chọn ảnh
+                  <input type="file" accept="image/png,image/jpeg" onChange={(e) => chooseImage(e.target.files)} />
+                </label>
+                {(form as DishForm | ComboForm).image && (
+                  <div className="h-28 w-28 overflow-hidden rounded-lg border border-[#1D2B46] bg-[#0B1427]">
+                    <img src={(form as DishForm | ComboForm).image} alt="Ảnh" className="h-full w-full object-cover" />
+                  </div>
+                )}
+              </>
+            )}
+
+            {tab === "categories" && (
+              <>
+                <label className="admin-field">
+                  Mô tả
+                  <textarea rows={3} value={(form as CategoryForm).desc ?? ""} onChange={(e) => setForm((current: any) => ({ ...current, desc: e.target.value.slice(0, 255) }))} />
+                </label>
+                <label className="admin-field">
+                  Thứ tự
+                  <input inputMode="numeric" value={(form as CategoryForm).sortOrder ?? "0"} onChange={(e) => setForm((current: any) => ({ ...current, sortOrder: cleanNumber(e.target.value, 3) }))} />
+                </label>
+              </>
+            )}
+
+            <label className="flex items-center gap-3 rounded-lg border border-[#1D2B46] bg-[#0B1427] px-4 py-3 text-sm text-[#DCE7FF]">
+              <input type="checkbox" checked={Boolean((form as any).isActive)} onChange={(e) => setForm((current: any) => ({ ...current, isActive: e.target.checked }))} />
+              {tab === "dishes" ? "Còn hàng" : "Hoạt động"}
             </label>
-          )}
+          </section>
 
-          {tab !== "categories" && (
-            <>
+          {tab === "combos" && (
+            <section className="grid content-start gap-4 rounded-xl border border-[#1D2B46] bg-[#050918] p-4">
+              <div className="flex items-center justify-between">
+                <h3 className="font-bold text-[#DCE7FF]">Món trong combo</h3>
+                <span className="text-xs text-[#9AA8BF]">{(form as ComboForm).items?.length ?? 0} món đã lưu</span>
+              </div>
               <label className="admin-field">
-                Mô tả
-                <textarea rows={3} value={(form as DishForm | ComboForm).description ?? ""} onChange={(e) => setForm((current: any) => ({ ...current, description: e.target.value.slice(0, 500) }))} />
+                Chọn món
+                <select value={comboPick.itemId} onChange={(e) => setComboPick({ ...comboPick, itemId: e.target.value })}>
+                  <option value="">Chọn món</option>
+                  {activeDishes.map((dish) => <option key={dish.id} value={dish.id}>{dish.name}</option>)}
+                </select>
               </label>
               <label className="admin-field">
-                Ảnh món
-                <input value={(form as DishForm | ComboForm).image ?? ""} onChange={(e) => setForm((current: any) => ({ ...current, image: e.target.value }))} placeholder="Dán URL Cloudinary hoặc chọn ảnh bên dưới" />
+                Số lượng
+                <input inputMode="numeric" value={comboPick.quantity} onChange={(e) => setComboPick({ ...comboPick, quantity: cleanNumber(e.target.value, 3) || "1" })} />
               </label>
-              <label className="admin-field">
-                Chọn ảnh
-                <input type="file" accept="image/png,image/jpeg" onChange={(e) => chooseImage(e.target.files)} />
-              </label>
-              {(form as DishForm | ComboForm).image && (
-                <div className="h-28 w-28 overflow-hidden rounded-lg border border-[#1D2B46] bg-[#0B1427]">
-                  <img src={(form as DishForm | ComboForm).image} alt="Ảnh món" className="h-full w-full object-cover" />
-                </div>
-              )}
-            </>
+              <button type="button" className="admin-save" onClick={addComboItem}>Thêm vào danh sách</button>
+              <div className="space-y-2 border-t border-[#1D2B46] pt-3">
+                {((form as ComboForm).items ?? []).length === 0 ? (
+                  <p className="text-sm text-[#9AA8BF]">Chưa có món nào</p>
+                ) : (form as ComboForm).items.map((comboItem) => (
+                  <div key={comboItem.itemId} className="flex items-center justify-between gap-3 rounded-lg bg-[#0B1427] px-3 py-2 text-sm text-[#DCE7FF]">
+                    <span>{comboItem.quantity}x {comboItem.item?.name ?? activeDishes.find((dish) => dish.id === comboItem.itemId)?.name ?? comboItem.itemId}</span>
+                    <button type="button" className="admin-delete" onClick={() => removeComboItem(comboItem.itemId)}>Xóa</button>
+                  </div>
+                ))}
+              </div>
+            </section>
           )}
-
-          {tab === "categories" && (
-            <>
-              <label className="admin-field">
-                Mô tả
-                <textarea rows={3} value={(form as CategoryForm).desc ?? ""} onChange={(e) => setForm((current: any) => ({ ...current, desc: e.target.value.slice(0, 255) }))} />
-              </label>
-              <label className="admin-field">
-                Thứ tự
-                <input inputMode="numeric" value={(form as CategoryForm).sortOrder ?? "0"} onChange={(e) => setForm((current: any) => ({ ...current, sortOrder: cleanNumber(e.target.value, 3) }))} />
-              </label>
-            </>
-          )}
-
-          <label className="flex items-center gap-3 rounded-lg border border-[#1D2B46] bg-[#0B1427] px-4 py-3 text-sm text-[#DCE7FF]">
-            <input type="checkbox" checked={Boolean((form as any).isActive)} onChange={(e) => setForm((current: any) => ({ ...current, isActive: e.target.checked }))} />
-            {tab === "dishes" ? "Còn hàng" : "Hoạt động"}
-          </label>
 
           {touched && validation.length > 0 && (
-            <div className="rounded-lg border border-[#7F1D1D] bg-[#2A0E13] px-4 py-3 text-sm text-[#FFB4B4]">
+            <div className={`rounded-lg border border-[#7F1D1D] bg-[#2A0E13] px-4 py-3 text-sm text-[#FFB4B4] ${tab === "combos" ? "md:col-span-2" : ""}`}>
               {validation[0]}
             </div>
           )}
 
-          <button className="admin-save" disabled={busy}>{busy ? "Đang lưu..." : editing ? "Cập nhật" : tab === "dishes" ? "Tạo món" : "Lưu"}</button>
+          <button className={`admin-save ${tab === "combos" ? "md:col-span-2" : ""}`} disabled={busy}>
+            {busy ? "Đang lưu..." : editing ? "Cập nhật" : tab === "dishes" ? "Tạo món" : tab === "combos" ? "Tạo combo" : "Lưu"}
+          </button>
         </form>
       </Modal>
 
