@@ -91,7 +91,12 @@ export default function DishTable() {
       ].filter(Boolean)
     }
     const categoryForm = form as CategoryForm
-    return [!categoryForm.name.trim() ? "Vui lòng nhập tên danh mục." : ""].filter(Boolean)
+    const sortOrder = Number(categoryForm.sortOrder || 0)
+    return [
+      !categoryForm.name.trim() ? "Vui lòng nhập tên danh mục." : "",
+      !categoryForm.desc.trim() ? "Vui lòng nhập mô tả danh mục." : "",
+      !Number.isFinite(sortOrder) || sortOrder < 0 ? "Thứ tự sắp xếp không hợp lệ." : "",
+    ].filter(Boolean)
   }, [form, tab])
 
   function emptyForm() {
@@ -99,7 +104,7 @@ export default function DishTable() {
       return { name: "", price: "", description: "", image: "", categoryId: data.categories.find((cat) => cat.isActive)?.id ?? "", isActive: true } satisfies DishForm
     }
     if (tab === "combos") return { name: "", price: "", description: "", image: "", isActive: true, items: [] } satisfies ComboForm
-    return { name: "", desc: "", sortOrder: String(data.categories.length + 1), isActive: true } satisfies CategoryForm
+    return { name: "", desc: "", sortOrder: "0", isActive: true } satisfies CategoryForm
   }
 
   function showCreate() {
@@ -202,7 +207,7 @@ export default function DishTable() {
       await apiDelete(pathFor(deleting))
       setDeleting(null)
       await loadMenu()
-      setMessage(tab === "combos" ? "Đã xóa combo khỏi danh sách hoạt động." : tab === "dishes" ? "Đã xóa món ăn khỏi danh sách hoạt động." : "Đã xóa dữ liệu khỏi danh sách hoạt động.")
+      setMessage(tab === "combos" ? "Đã xóa combo khỏi danh sách hoạt động." : tab === "dishes" ? "Đã xóa món ăn khỏi danh sách hoạt động." : "Đã xóa danh mục khỏi danh sách hoạt động.")
     } catch (error: any) {
       setMessage(error.message)
     } finally {
@@ -365,11 +370,11 @@ export default function DishTable() {
               <>
                 <label className="admin-field">
                   Mô tả
-                  <textarea rows={3} value={(form as CategoryForm).desc ?? ""} onChange={(e) => setForm((current: any) => ({ ...current, desc: e.target.value.slice(0, 255) }))} />
+                  <textarea rows={3} value={(form as CategoryForm).desc ?? ""} onChange={(e) => setForm((current: any) => ({ ...current, desc: e.target.value.slice(0, 255) }))} required />
                 </label>
                 <label className="admin-field">
                   Thứ tự
-                  <input inputMode="numeric" value={(form as CategoryForm).sortOrder ?? "0"} onChange={(e) => setForm((current: any) => ({ ...current, sortOrder: cleanNumber(e.target.value, 3) }))} />
+                  <input inputMode="numeric" value={(form as CategoryForm).sortOrder ?? "0"} onChange={(e) => setForm((current: any) => ({ ...current, sortOrder: cleanNumber(e.target.value, 3) }))} required />
                 </label>
               </>
             )}
@@ -418,7 +423,7 @@ export default function DishTable() {
           )}
 
           <button className={`admin-save ${tab === "combos" ? "md:col-span-2" : ""}`} disabled={busy}>
-            {busy ? "Đang lưu..." : editing ? "Cập nhật" : tab === "dishes" ? "Tạo món" : tab === "combos" ? "Tạo combo" : "Lưu"}
+            {busy ? "Đang lưu..." : editing ? "Cập nhật" : tab === "dishes" ? "Tạo món" : tab === "combos" ? "Tạo combo" : "Tạo danh mục"}
           </button>
         </form>
       </Modal>
