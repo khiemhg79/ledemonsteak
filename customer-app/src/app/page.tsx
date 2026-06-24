@@ -39,7 +39,7 @@ export default function HomePage() {
   const [error, setError] = useState("")
   const [tables, setTables] = useState<RestaurantTable[]>([])
   const [tableError, setTableError] = useState("")
-  const { tableId, qrToken, setTableId, clearTableId, items, hydrate: hydrateCart } = useCart()
+  const { tableId, qrToken, setTableId, clearTableId, hydrate: hydrateCart } = useCart()
   const user = useAuth((s) => s.user)
   const logout = useAuth((s) => s.logout)
   const hydrateAuth = useAuth((s) => s.hydrate)
@@ -169,13 +169,12 @@ export default function HomePage() {
         )}
       </section>
 
-      <CartDrawer />
-      <nav className="fixed bottom-0 left-1/2 z-20 grid w-full max-w-md -translate-x-1/2 grid-cols-5 items-center border-t border-[#F0D7B0] bg-white px-3 pb-3 pt-2 shadow-2xl shadow-black/10">
+      <nav className="fixed bottom-0 left-1/2 z-20 grid h-[76px] w-full max-w-md -translate-x-1/2 grid-cols-5 items-center gap-1 border-t border-[#F0D7B0] bg-white px-3 pb-2 pt-2 shadow-2xl shadow-black/10">
         <Link className="text-center text-[11px] font-bold text-[#D9491E]" href="/">Món ăn</Link>
         <Link className="text-center text-[11px] font-semibold text-[#6F625C]" href="/order">Đơn hiện tại</Link>
         <Link className="text-center text-[11px] font-semibold text-[#6F625C]" href="/history">Lịch sử</Link>
         <Link className="text-center text-[11px] font-semibold text-[#6F625C]" href="/account">Người dùng</Link>
-        <button className="pointer-events-none rounded-2xl bg-[#D9491E] px-2 py-3 text-center text-[11px] font-black text-white shadow-lg shadow-[#D9491E]/30">{items.length} món</button>
+        <CartDrawer />
       </nav>
     </main>
   )

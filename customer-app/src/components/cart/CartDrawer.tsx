@@ -94,7 +94,7 @@ export default function CartDrawer() {
   return (
     <>
       <button
-        className="fixed bottom-[18px] left-[calc(50%+132px)] z-30 flex h-[58px] w-[58px] -translate-x-1/2 flex-col items-center justify-center rounded-2xl bg-[#D9491E] text-[11px] font-black text-white shadow-xl shadow-[#D9491E]/30"
+        className="relative z-30 flex h-[58px] min-w-0 w-full flex-col items-center justify-center rounded-2xl bg-[#D9491E] px-1 text-[10px] font-black text-white shadow-xl shadow-[#D9491E]/30"
         onClick={() => setOpen(true)}
         aria-label="Mở giỏ hàng"
       >
