@@ -13,6 +13,17 @@ async function readError(res: Response) {
   try { return JSON.parse(text).error || text } catch { return text }
 }
 
+async function ensureOk(res: Response, hadToken: boolean) {
+  if (res.ok) return
+  const error = await readError(res)
+  if (res.status === 401 && hadToken && typeof window !== "undefined") {
+    localStorage.removeItem("token")
+    localStorage.removeItem("user")
+    window.location.replace("/login?expired=1")
+  }
+  throw new Error(error)
+}
+
 function authToken(token?: string) {
   if (token) return token
   return typeof window !== "undefined" ? localStorage.getItem("token") ?? undefined : undefined
@@ -21,27 +32,27 @@ function authToken(token?: string) {
 export async function apiGet(path: string, token?: string) {
   const currentToken = authToken(token)
   const res = await fetch(`${apiBase()}${path}`, { headers: currentToken ? { Authorization: `Bearer ${currentToken}` } : {} })
-  if (!res.ok) throw new Error(await readError(res))
+  await ensureOk(res, !!currentToken)
   return res.json()
 }
 
 export async function apiPost(path: string, body: any, token?: string) {
   const currentToken = authToken(token)
   const res = await fetch(`${apiBase()}${path}`, { method: "POST", headers: { "Content-Type": "application/json", ...(currentToken ? { Authorization: `Bearer ${currentToken}` } : {}) }, body: JSON.stringify(body) })
-  if (!res.ok) throw new Error(await readError(res))
+  await ensureOk(res, !!currentToken)
   return res.json()
 }
 
 export async function apiPatch(path: string, body: any, token?: string) {
   const currentToken = authToken(token)
   const res = await fetch(`${apiBase()}${path}`, { method: "PATCH", headers: { "Content-Type": "application/json", ...(currentToken ? { Authorization: `Bearer ${currentToken}` } : {}) }, body: JSON.stringify(body) })
-  if (!res.ok) throw new Error(await readError(res))
+  await ensureOk(res, !!currentToken)
   return res.json()
 }
 
 export async function apiDelete(path: string, token?: string) {
   const currentToken = authToken(token)
   const res = await fetch(`${apiBase()}${path}`, { method: "DELETE", headers: currentToken ? { Authorization: `Bearer ${currentToken}` } : {} })
-  if (!res.ok) throw new Error(await readError(res))
+  await ensureOk(res, !!currentToken)
   return res.json()
 }

@@ -1,12 +1,13 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { apiPost } from "@/lib/api"
 import { useAuth } from "@/store/auth"
 
 export default function AdminLoginPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const login = useAuth((s) => s.login)
   const [phone, setPhone] = useState("0900000001")
   const [password, setPassword] = useState("Admin@123")
@@ -30,7 +31,11 @@ export default function AdminLoginPage() {
         <h1 className="mb-6 text-center text-2xl font-bold text-[#C9A84C]">Admin — Le Monde Steak</h1>
         <input className="mb-3 w-full rounded-md bg-gray-900 px-3 py-2 text-sm text-white" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Số điện thoại" />
         <input className="mb-3 w-full rounded-md bg-gray-900 px-3 py-2 text-sm text-white" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Mật khẩu" type="password" />
-        {message && <p className="mb-3 rounded-md bg-red-950 p-2 text-sm text-red-200">{message}</p>}
+        {(message || searchParams.get("expired")) && (
+          <p className="mb-3 rounded-md bg-red-950 p-2 text-sm text-red-200">
+            {message || "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại."}
+          </p>
+        )}
         <button className="w-full rounded-md bg-[#8B1A1A] py-2 font-bold text-white">Đăng nhập</button>
       </form>
     </div>
