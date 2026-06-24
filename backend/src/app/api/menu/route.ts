@@ -67,7 +67,16 @@ export async function GET(req: NextRequest) {
     prisma.combo.findMany({ where: admin ? {} : { isActive: true }, include: { items: { include: { item: true } } }, orderBy: { name: "asc" } }),
     prisma.category.findMany({ where: admin ? {} : { isActive: true }, orderBy: { sortOrder: "asc" } }),
   ])
-  return NextResponse.json({ dishes, combos, categories }, { headers: corsHeaders() })
+  return NextResponse.json(
+    { dishes, combos, categories },
+    {
+      headers: {
+        ...corsHeaders(),
+        "Vary": "Authorization",
+        ...(admin ? { "Cache-Control": "private, no-store" } : { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300" }),
+      },
+    },
+  )
 }
 
 export async function POST(req: NextRequest) {

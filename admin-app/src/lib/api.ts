@@ -29,11 +29,24 @@ function authToken(token?: string) {
   return typeof window !== "undefined" ? localStorage.getItem("token") ?? undefined : undefined
 }
 
+const inflightGets = new Map<string, Promise<any>>()
+
 export async function apiGet(path: string, token?: string) {
   const currentToken = authToken(token)
-  const res = await fetch(`${apiBase()}${path}`, { headers: currentToken ? { Authorization: `Bearer ${currentToken}` } : {} })
-  await ensureOk(res, !!currentToken)
-  return res.json()
+  const cacheKey = `${path}|${currentToken ?? "guest"}`
+  const pending = inflightGets.get(cacheKey)
+  if (pending) return pending
+
+  const promise = fetch(`${apiBase()}${path}`, {
+    cache: "no-store",
+    headers: currentToken ? { Authorization: `Bearer ${currentToken}` } : {},
+  }).then(async (res) => {
+    await ensureOk(res, !!currentToken)
+    return res.json()
+  }).finally(() => inflightGets.delete(cacheKey))
+
+  inflightGets.set(cacheKey, promise)
+  return promise
 }
 
 export async function apiPost(path: string, body: any, token?: string) {

@@ -23,6 +23,8 @@ async function request(input: RequestInfo | URL, init?: RequestInit) {
   catch { throw new Error("Không thể kết nối hệ thống. Vui lòng kiểm tra Internet và thử lại.") }
 }
 
+const inflightGets = new Map<string, Promise<any>>()
+
 function handleUnauthorized(res: Response, path: string) {
   if (res.status !== 401 || path === "/api/auth/login" || typeof window === "undefined") return
   localStorage.removeItem("token")
@@ -32,10 +34,21 @@ function handleUnauthorized(res: Response, path: string) {
 
 export async function apiGet(path: string, token?: string) {
   const currentToken = authToken(token)
-  const res = await request(`${apiBase()}${path}`, { headers: currentToken ? { Authorization: `Bearer ${currentToken}` } : {} })
-  handleUnauthorized(res, path)
-  if (!res.ok) throw new Error(await readError(res))
-  return res.json()
+  const cacheKey = `${path}|${currentToken ?? "guest"}`
+  const pending = inflightGets.get(cacheKey)
+  if (pending) return pending
+
+  const promise = request(`${apiBase()}${path}`, {
+    cache: "no-store",
+    headers: currentToken ? { Authorization: `Bearer ${currentToken}` } : {},
+  }).then(async (res) => {
+    handleUnauthorized(res, path)
+    if (!res.ok) throw new Error(await readError(res))
+    return res.json()
+  }).finally(() => inflightGets.delete(cacheKey))
+
+  inflightGets.set(cacheKey, promise)
+  return promise
 }
 
 export async function apiPost(path: string, body: any, token?: string) {

@@ -10,5 +10,7 @@ export async function GET() {
     select: { id: true, number: true, capacity: true, status: true },
     orderBy: { number: "asc" },
   })
-  return NextResponse.json(tables, { headers: corsHeaders() })
+  return NextResponse.json(tables, {
+    headers: { ...corsHeaders(), "Cache-Control": "public, s-maxage=30, stale-while-revalidate=120" },
+  })
 }

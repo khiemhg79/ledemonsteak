@@ -34,7 +34,10 @@ export async function GET(req: NextRequest) {
     }),
     prisma.orderDetail.findMany({
       where: { order: { status: "COMPLETED" } },
-      include: { item: true, combo: true },
+      include: {
+        item: { select: { name: true } },
+        combo: { select: { name: true } },
+      },
     }),
   ])
 

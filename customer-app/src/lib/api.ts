@@ -18,6 +18,16 @@ async function request(input: RequestInfo | URL, init?: RequestInit) {
   catch { throw new Error("Không thể kết nối hệ thống. Vui lòng kiểm tra Internet và thử lại.") }
 }
 
+const responseCache = new Map<string, { expiresAt: number; data: any }>()
+const inflightGets = new Map<string, Promise<any>>()
+
+function cacheDuration(path: string) {
+  if (path === "/api/menu") return 60_000
+  if (path === "/api/public/tables") return 30_000
+  if (path === "/api/promotions") return 20_000
+  return 0
+}
+
 function authToken(token?: string) {
   if (token) return token
   return typeof window !== "undefined" ? localStorage.getItem("token") ?? undefined : undefined
@@ -25,12 +35,26 @@ function authToken(token?: string) {
 
 export async function apiGet(path: string, token?: string) {
   const currentToken = authToken(token)
-  const res = await request(`${apiBase()}${path}`, {
-    cache: "no-store",
+  const cacheKey = `${path}|${currentToken ?? "guest"}`
+  const maxAge = cacheDuration(path)
+  const cached = responseCache.get(cacheKey)
+  if (cached && cached.expiresAt > Date.now()) return cached.data
+
+  const pending = inflightGets.get(cacheKey)
+  if (pending) return pending
+
+  const promise = request(`${apiBase()}${path}`, {
+    cache: maxAge ? "default" : "no-store",
     headers: currentToken ? { Authorization: `Bearer ${currentToken}` } : {},
-  })
-  if (!res.ok) throw new Error(await readError(res))
-  return res.json()
+  }).then(async (res) => {
+    if (!res.ok) throw new Error(await readError(res))
+    const data = await res.json()
+    if (maxAge) responseCache.set(cacheKey, { expiresAt: Date.now() + maxAge, data })
+    return data
+  }).finally(() => inflightGets.delete(cacheKey))
+
+  inflightGets.set(cacheKey, promise)
+  return promise
 }
 
 export async function apiPost(path: string, body: any, token?: string) {

@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import OrderCard from "@/components/orders/OrderCard"
 import { apiGet, apiPatch } from "@/lib/api"
 import { useAuth } from "@/store/auth"
@@ -35,8 +35,11 @@ export default function OrdersPage() {
   const [itemFilter, setItemFilter] = useState<ItemFilter>("all")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
+  const loadingRef = useRef(false)
 
   async function loadOrders(silent = false) {
+    if (loadingRef.current) return
+    loadingRef.current = true
     if (!silent) setLoading(true)
     setError("")
     try {
@@ -44,6 +47,7 @@ export default function OrdersPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Không tải được đơn hàng.")
     } finally {
+      loadingRef.current = false
       if (!silent) setLoading(false)
     }
   }
@@ -60,7 +64,9 @@ export default function OrdersPage() {
 
   useEffect(() => {
     loadOrders()
-    const timer = window.setInterval(() => loadOrders(true), 5000)
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible") loadOrders(true)
+    }, 5000)
     return () => window.clearInterval(timer)
   }, [])
 

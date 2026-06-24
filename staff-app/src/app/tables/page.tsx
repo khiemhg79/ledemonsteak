@@ -24,8 +24,11 @@ export default function TablesPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const dismissed = useRef(new Set<string>())
+  const loadingRef = useRef(false)
 
   async function loadData(silent = false) {
+    if (loadingRef.current) return
+    loadingRef.current = true
     if (!silent) setLoading(true)
     setError("")
     try {
@@ -37,7 +40,10 @@ export default function TablesPage() {
         const refreshed = orderList.find((order: any) => order.id === paymentOrder.id)
         if (refreshed?.table?.status === "REQUESTING_BILL") setPaymentOrder(refreshed)
       }
-    } catch (err) { setError(err instanceof Error ? err.message : "Không tải được dữ liệu bàn.") } finally { if (!silent) setLoading(false) }
+    } catch (err) { setError(err instanceof Error ? err.message : "Không tải được dữ liệu bàn.") } finally {
+      loadingRef.current = false
+      if (!silent) setLoading(false)
+    }
   }
 
   async function updateStatus(tableId: string, status: TableStatus) {
@@ -63,7 +69,13 @@ export default function TablesPage() {
   function closePayment() { if (paymentOrder) dismissed.current.add(paymentOrder.id); setPaymentOrder(null) }
   function paymentCompleted() { setPaymentOrder(null); loadData() }
 
-  useEffect(() => { loadData(); const timer = window.setInterval(() => loadData(true), 5000); return () => window.clearInterval(timer) }, [])
+  useEffect(() => {
+    loadData()
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible") loadData(true)
+    }, 5000)
+    return () => window.clearInterval(timer)
+  }, [])
   const requestCount = tables.filter((table) => table.status === "REQUESTING_BILL").length
   const activeOrderTableIds = new Set(orders.map((order) => order.tableId))
 

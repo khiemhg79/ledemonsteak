@@ -112,7 +112,15 @@ export async function GET(req: NextRequest) {
   else if (!status) where.status = { in: ["PENDING", "CONFIRMED"] }
   const orders = await prisma.order.findMany({
     where,
-    include: { details: { include: { item: true, combo: true } }, table: true },
+    include: {
+      details: {
+        include: {
+          item: { select: { id: true, name: true } },
+          combo: { select: { id: true, name: true } },
+        },
+      },
+      table: { select: { id: true, number: true, status: true } },
+    },
     orderBy: { createdAt: staffView ? "asc" : "desc" },
   })
   return NextResponse.json(orders.map((order) => ({ ...order, items: order.details })), { headers: corsHeaders() })
