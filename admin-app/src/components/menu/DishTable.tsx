@@ -34,6 +34,10 @@ function cleanNumber(value: string, maxLength = 9) {
   return value.replace(/\D/g, "").slice(0, maxLength)
 }
 
+function textValue(value: unknown) {
+  return typeof value === "string" ? value : ""
+}
+
 function activeLabel(value: boolean) {
   return value ? "Hoạt động" : "Tạm dừng"
 }
@@ -75,7 +79,7 @@ export default function DishTable() {
       const dishForm = form as DishForm
       const price = Number(dishForm.price)
       return [
-        !dishForm.name.trim() ? "Vui lòng nhập tên món ăn." : "",
+        !textValue(dishForm.name).trim() ? "Vui lòng nhập tên món ăn." : "",
         !dishForm.price || !Number.isFinite(price) || price <= 0 ? "Giá món ăn không hợp lệ." : "",
         price > 999999999 ? "Giá món ăn tối đa 999.999.999đ." : "",
         !dishForm.categoryId ? "Vui lòng chọn danh mục." : "",
@@ -85,7 +89,7 @@ export default function DishTable() {
       const comboForm = form as ComboForm
       const price = Number(comboForm.price)
       return [
-        !comboForm.name.trim() ? "Vui lòng nhập tên combo." : "",
+        !textValue(comboForm.name).trim() ? "Vui lòng nhập tên combo." : "",
         !comboForm.price || !Number.isFinite(price) || price <= 0 ? "Giá combo không hợp lệ." : "",
         price > 999999999 ? "Giá combo tối đa 999.999.999đ." : "",
       ].filter(Boolean)
@@ -93,18 +97,28 @@ export default function DishTable() {
     const categoryForm = form as CategoryForm
     const sortOrder = Number(categoryForm.sortOrder || 0)
     return [
-      !categoryForm.name.trim() ? "Vui lòng nhập tên danh mục." : "",
-      !categoryForm.desc.trim() ? "Vui lòng nhập mô tả danh mục." : "",
+      !textValue(categoryForm.name).trim() ? "Vui lòng nhập tên danh mục." : "",
+      !textValue(categoryForm.desc).trim() ? "Vui lòng nhập mô tả danh mục." : "",
       !Number.isFinite(sortOrder) || sortOrder < 0 ? "Thứ tự sắp xếp không hợp lệ." : "",
     ].filter(Boolean)
   }, [form, tab])
 
-  function emptyForm() {
-    if (tab === "dishes") {
+  function emptyForm(nextTab: Tab = tab) {
+    if (nextTab === "dishes") {
       return { name: "", price: "", description: "", image: "", categoryId: data.categories.find((cat) => cat.isActive)?.id ?? "", isActive: true } satisfies DishForm
     }
-    if (tab === "combos") return { name: "", price: "", description: "", image: "", isActive: true, items: [] } satisfies ComboForm
+    if (nextTab === "combos") return { name: "", price: "", description: "", image: "", isActive: true, items: [] } satisfies ComboForm
     return { name: "", desc: "", sortOrder: "0", isActive: true } satisfies CategoryForm
+  }
+
+  function changeTab(nextTab: Tab) {
+    setTab(nextTab)
+    setForm(emptyForm(nextTab))
+    setEditing(null)
+    setDeleting(null)
+    setOpen(false)
+    setTouched(false)
+    setMessage("")
   }
 
   function showCreate() {
@@ -151,10 +165,10 @@ export default function DishTable() {
     if (tab === "dishes") {
       const dishForm = form as DishForm
       return {
-        name: dishForm.name.trim(),
+        name: textValue(dishForm.name).trim(),
         price: Number(dishForm.price),
-        description: dishForm.description.trim(),
-        image: dishForm.image.trim(),
+        description: textValue(dishForm.description).trim(),
+        image: textValue(dishForm.image).trim(),
         categoryId: dishForm.categoryId,
         isActive: dishForm.isActive,
       }
@@ -162,18 +176,18 @@ export default function DishTable() {
     if (tab === "combos") {
       const comboForm = form as ComboForm
       return {
-        name: comboForm.name.trim(),
+        name: textValue(comboForm.name).trim(),
         price: Number(comboForm.price),
-        description: comboForm.description.trim(),
-        image: comboForm.image.trim(),
+        description: textValue(comboForm.description).trim(),
+        image: textValue(comboForm.image).trim(),
         isActive: comboForm.isActive,
         items: comboForm.items.map((item) => ({ itemId: item.itemId, quantity: item.quantity })),
       }
     }
     const categoryForm = form as CategoryForm
     return {
-      name: categoryForm.name.trim(),
-      desc: categoryForm.desc.trim(),
+      name: textValue(categoryForm.name).trim(),
+      desc: textValue(categoryForm.desc).trim(),
       sortOrder: Number(categoryForm.sortOrder || 0),
       isActive: categoryForm.isActive,
     }
@@ -258,7 +272,7 @@ export default function DishTable() {
     <div className="space-y-5">
       <div className="rounded-xl border border-[#1D2B46] bg-[#050918] p-2">
         {tabs.map((item) => (
-          <button key={item.id} className={`rounded-lg px-5 py-3 text-sm font-semibold ${tab === item.id ? "bg-[#1E2B44] text-white" : "text-[#D4D9E4]"}`} onClick={() => { setTab(item.id); setMessage("") }}>
+          <button key={item.id} className={`rounded-lg px-5 py-3 text-sm font-semibold ${tab === item.id ? "bg-[#1E2B44] text-white" : "text-[#D4D9E4]"}`} onClick={() => changeTab(item.id)}>
             {item.label}
           </button>
         ))}
@@ -324,7 +338,7 @@ export default function DishTable() {
           <section className="grid gap-4">
             <label className="admin-field">
               {tab === "dishes" ? "Tên món ăn" : tab === "combos" ? "Tên combo" : "Tên danh mục"}
-              <input value={(form as any).name ?? ""} onBlur={() => setForm((current: any) => ({ ...current, name: current.name.trim() }))} onChange={(e) => setForm((current: any) => ({ ...current, name: cleanText(e.target.value, 50) }))} maxLength={50} required />
+              <input value={(form as any).name ?? ""} onBlur={() => setForm((current: any) => ({ ...current, name: textValue(current.name).trim() }))} onChange={(e) => setForm((current: any) => ({ ...current, name: cleanText(e.target.value, 50) }))} maxLength={50} required />
             </label>
 
             {tab !== "categories" && (
