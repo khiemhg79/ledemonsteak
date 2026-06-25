@@ -24,6 +24,23 @@ async function ensureOk(res: Response, hadToken: boolean) {
   throw new Error(error)
 }
 
+const REQUEST_TIMEOUT_MS = 10_000
+
+async function request(input: RequestInfo | URL, init?: RequestInit) {
+  const controller = new AbortController()
+  const timeout = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+  try {
+    return await fetch(input, { ...init, signal: controller.signal })
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new Error("Hệ thống phản hồi quá lâu. Vui lòng thử lại.")
+    }
+    throw new Error("Không thể kết nối hệ thống. Vui lòng kiểm tra Internet và thử lại.")
+  } finally {
+    window.clearTimeout(timeout)
+  }
+}
+
 function authToken(token?: string) {
   if (token) return token
   return typeof window !== "undefined" ? localStorage.getItem("token") ?? undefined : undefined
@@ -37,7 +54,7 @@ export async function apiGet(path: string, token?: string) {
   const pending = inflightGets.get(cacheKey)
   if (pending) return pending
 
-  const promise = fetch(`${apiBase()}${path}`, {
+  const promise = request(`${apiBase()}${path}`, {
     cache: "no-store",
     headers: currentToken ? { Authorization: `Bearer ${currentToken}` } : {},
   }).then(async (res) => {
@@ -51,21 +68,21 @@ export async function apiGet(path: string, token?: string) {
 
 export async function apiPost(path: string, body: any, token?: string) {
   const currentToken = authToken(token)
-  const res = await fetch(`${apiBase()}${path}`, { method: "POST", headers: { "Content-Type": "application/json", ...(currentToken ? { Authorization: `Bearer ${currentToken}` } : {}) }, body: JSON.stringify(body) })
+  const res = await request(`${apiBase()}${path}`, { method: "POST", headers: { "Content-Type": "application/json", ...(currentToken ? { Authorization: `Bearer ${currentToken}` } : {}) }, body: JSON.stringify(body) })
   await ensureOk(res, !!currentToken)
   return res.json()
 }
 
 export async function apiPatch(path: string, body: any, token?: string) {
   const currentToken = authToken(token)
-  const res = await fetch(`${apiBase()}${path}`, { method: "PATCH", headers: { "Content-Type": "application/json", ...(currentToken ? { Authorization: `Bearer ${currentToken}` } : {}) }, body: JSON.stringify(body) })
+  const res = await request(`${apiBase()}${path}`, { method: "PATCH", headers: { "Content-Type": "application/json", ...(currentToken ? { Authorization: `Bearer ${currentToken}` } : {}) }, body: JSON.stringify(body) })
   await ensureOk(res, !!currentToken)
   return res.json()
 }
 
 export async function apiDelete(path: string, token?: string) {
   const currentToken = authToken(token)
-  const res = await fetch(`${apiBase()}${path}`, { method: "DELETE", headers: currentToken ? { Authorization: `Bearer ${currentToken}` } : {} })
+  const res = await request(`${apiBase()}${path}`, { method: "DELETE", headers: currentToken ? { Authorization: `Bearer ${currentToken}` } : {} })
   await ensureOk(res, !!currentToken)
   return res.json()
 }

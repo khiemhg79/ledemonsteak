@@ -9,6 +9,16 @@ import { useAuth } from "@/store/auth"
 
 const money = (value: number) => Number(value || 0).toLocaleString("vi-VN") + "đ"
 
+function escapeHtml(value: unknown) {
+  return String(value ?? "").replace(/[&<>"']/g, (character) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    "\"": "&quot;",
+    "'": "&#039;",
+  })[character] as string)
+}
+
 export default function InvoicePage() {
   const router = useRouter()
   const logout = useAuth((state) => state.logout)
@@ -39,10 +49,10 @@ export default function InvoicePage() {
   function printInvoice(invoice: any) {
     const payment = invoice.payments?.[0]
     const methodLabels: Record<string, string> = { CASH: "Tiền mặt", BANK_TRANSFER: "Chuyển khoản", CARD: "Thẻ ngân hàng", E_WALLET: "Ví điện tử / MoMo" }
-    const items = invoice.order.items.map((item: any) => `<div class="item"><div class="row"><strong>${item.item?.name ?? item.combo?.name} x ${item.quantity}</strong><strong>${money(item.price * item.quantity)}</strong></div><small>${item.combo ? "Combo" : "Món lẻ"} • ${money(item.price)} / phần</small></div>`).join("")
+    const items = invoice.order.items.map((item: any) => `<div class="item"><div class="row"><strong>${escapeHtml(item.item?.name ?? item.combo?.name)} x ${Number(item.quantity)}</strong><strong>${money(item.price * item.quantity)}</strong></div><small>${item.combo ? "Combo" : "Món lẻ"} • ${money(item.price)} / phần</small></div>`).join("")
     const popup = window.open("", "_blank", "width=520,height=760")
     if (!popup) { setError("Trình duyệt đang chặn cửa sổ in. Vui lòng cho phép popup rồi thử lại."); return }
-    popup.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${invoice.invoiceCode}</title><style>body{font-family:Arial,sans-serif;color:#171717;padding:28px;max-width:420px;margin:auto}.center{text-align:center}.row{display:flex;justify-content:space-between;gap:16px}.line{border-top:1px dashed #777;margin:14px 0}.item{margin:10px 0;font-size:14px}.total{font-size:20px;font-weight:700}h1,p{margin:6px 0}small{color:#666}</style></head><body><div class="center"><h1>Le Monde Steak</h1><p>HÓA ĐƠN THANH TOÁN</p><strong>${invoice.invoiceCode}</strong></div><div class="line"></div><div class="row"><span>Đơn hàng #${invoice.order.orderNumber}</span><span>Bàn ${String(invoice.table?.number ?? "").replace(/^T/i, "")}</span></div><p>${new Date(invoice.paidAt).toLocaleString("vi-VN")}</p><div class="line"></div>${items}<div class="line"></div><div class="row"><span>Tạm tính</span><span>${money(invoice.subtotal)}</span></div><div class="row"><span>Giảm giá</span><span>-${money(invoice.discount)}</span></div><div class="row total"><span>Tổng cộng</span><span>${money(invoice.total)}</span></div><div class="row"><span>Tiền nhận</span><span>${money(payment?.amount)}</span></div><div class="row"><span>Tiền thừa</span><span>${money(Math.max((payment?.amount ?? invoice.total) - invoice.total, 0))}</span></div><div class="row"><span>Phương thức</span><span>${methodLabels[payment?.method] ?? "-"}</span></div><div class="line"></div><p class="center">Cảm ơn quý khách và hẹn gặp lại!</p><script>window.onload=()=>window.print()</script></body></html>`)
+    popup.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(invoice.invoiceCode)}</title><style>body{font-family:Arial,sans-serif;color:#171717;padding:28px;max-width:420px;margin:auto}.center{text-align:center}.row{display:flex;justify-content:space-between;gap:16px}.line{border-top:1px dashed #777;margin:14px 0}.item{margin:10px 0;font-size:14px}.total{font-size:20px;font-weight:700}h1,p{margin:6px 0}small{color:#666}</style></head><body><div class="center"><h1>Le Monde Steak</h1><p>HÓA ĐƠN THANH TOÁN</p><strong>${escapeHtml(invoice.invoiceCode)}</strong></div><div class="line"></div><div class="row"><span>Đơn hàng #${Number(invoice.order.orderNumber)}</span><span>Bàn ${escapeHtml(String(invoice.table?.number ?? "").replace(/^T/i, ""))}</span></div><p>${escapeHtml(new Date(invoice.paidAt).toLocaleString("vi-VN"))}</p><div class="line"></div>${items}<div class="line"></div><div class="row"><span>Tạm tính</span><span>${money(invoice.subtotal)}</span></div><div class="row"><span>Giảm giá</span><span>-${money(invoice.discount)}</span></div><div class="row total"><span>Tổng cộng</span><span>${money(invoice.total)}</span></div><div class="row"><span>Tiền nhận</span><span>${money(payment?.amount)}</span></div><div class="row"><span>Tiền thừa</span><span>${money(Math.max((payment?.amount ?? invoice.total) - invoice.total, 0))}</span></div><div class="row"><span>Phương thức</span><span>${escapeHtml(methodLabels[payment?.method] ?? "-")}</span></div><div class="line"></div><p class="center">Cảm ơn quý khách và hẹn gặp lại!</p><script>window.onload=()=>window.print()</script></body></html>`)
     popup.document.close()
   }
   useEffect(() => {

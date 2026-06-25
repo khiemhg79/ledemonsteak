@@ -13,9 +13,21 @@ async function readError(res: Response) {
   try { return JSON.parse(text).error || text } catch { return text }
 }
 
+const REQUEST_TIMEOUT_MS = 10_000
+
 async function request(input: RequestInfo | URL, init?: RequestInit) {
-  try { return await fetch(input, init) }
-  catch { throw new Error("Không thể kết nối hệ thống. Vui lòng kiểm tra Internet và thử lại.") }
+  const controller = new AbortController()
+  const timeout = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+  try {
+    return await fetch(input, { ...init, signal: controller.signal })
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new Error("Hệ thống phản hồi quá lâu. Vui lòng thử lại.")
+    }
+    throw new Error("Không thể kết nối hệ thống. Vui lòng kiểm tra Internet và thử lại.")
+  } finally {
+    window.clearTimeout(timeout)
+  }
 }
 
 const responseCache = new Map<string, { expiresAt: number; data: any }>()
