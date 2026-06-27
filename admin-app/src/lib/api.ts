@@ -46,20 +46,40 @@ function authToken(token?: string) {
   return typeof window !== "undefined" ? localStorage.getItem("token") ?? undefined : undefined
 }
 
+const responseCache = new Map<string, { expiresAt: number; data: any }>()
 const inflightGets = new Map<string, Promise<any>>()
 
-export async function apiGet(path: string, token?: string) {
+function cacheDuration(path: string) {
+  if (path === "/api/admin/reports") return 60_000
+  if (path === "/api/menu") return 45_000
+  if (path === "/api/admin/users") return 20_000
+  if (path === "/api/promotions") return 30_000
+  if (path === "/api/tables") return 20_000
+  return 0
+}
+
+function clearCache() {
+  responseCache.clear()
+}
+
+export async function apiGet(path: string, token?: string, options?: { force?: boolean }) {
   const currentToken = authToken(token)
   const cacheKey = `${path}|${currentToken ?? "guest"}`
+  const maxAge = cacheDuration(path)
+  const cached = responseCache.get(cacheKey)
+  if (!options?.force && cached && cached.expiresAt > Date.now()) return cached.data
+
   const pending = inflightGets.get(cacheKey)
   if (pending) return pending
 
   const promise = request(`${apiBase()}${path}`, {
-    cache: "no-store",
+    cache: maxAge ? "default" : "no-store",
     headers: currentToken ? { Authorization: `Bearer ${currentToken}` } : {},
   }).then(async (res) => {
     await ensureOk(res, !!currentToken)
-    return res.json()
+    const data = await res.json()
+    if (maxAge) responseCache.set(cacheKey, { expiresAt: Date.now() + maxAge, data })
+    return data
   }).finally(() => inflightGets.delete(cacheKey))
 
   inflightGets.set(cacheKey, promise)
@@ -70,6 +90,7 @@ export async function apiPost(path: string, body: any, token?: string) {
   const currentToken = authToken(token)
   const res = await request(`${apiBase()}${path}`, { method: "POST", headers: { "Content-Type": "application/json", ...(currentToken ? { Authorization: `Bearer ${currentToken}` } : {}) }, body: JSON.stringify(body) })
   await ensureOk(res, !!currentToken)
+  clearCache()
   return res.json()
 }
 
@@ -77,6 +98,7 @@ export async function apiPatch(path: string, body: any, token?: string) {
   const currentToken = authToken(token)
   const res = await request(`${apiBase()}${path}`, { method: "PATCH", headers: { "Content-Type": "application/json", ...(currentToken ? { Authorization: `Bearer ${currentToken}` } : {}) }, body: JSON.stringify(body) })
   await ensureOk(res, !!currentToken)
+  clearCache()
   return res.json()
 }
 
@@ -84,5 +106,6 @@ export async function apiDelete(path: string, token?: string) {
   const currentToken = authToken(token)
   const res = await request(`${apiBase()}${path}`, { method: "DELETE", headers: currentToken ? { Authorization: `Bearer ${currentToken}` } : {} })
   await ensureOk(res, !!currentToken)
+  clearCache()
   return res.json()
 }

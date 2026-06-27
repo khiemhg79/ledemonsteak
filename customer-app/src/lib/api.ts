@@ -77,6 +77,7 @@ export async function apiPost(path: string, body: any, token?: string) {
     body: JSON.stringify(body),
   })
   if (!res.ok) throw new Error(await readError(res))
+  responseCache.clear()
   return res.json()
 }
 
@@ -88,6 +89,7 @@ export async function apiPatch(path: string, body: any, token?: string) {
     body: JSON.stringify(body),
   })
   if (!res.ok) throw new Error(await readError(res))
+  responseCache.clear()
   return res.json()
 }
 
@@ -98,5 +100,6 @@ export async function apiDelete(path: string, token?: string) {
     headers: currentToken ? { Authorization: `Bearer ${currentToken}` } : {},
   })
   if (!res.ok) throw new Error(await readError(res))
+  responseCache.clear()
   return res.json()
 }

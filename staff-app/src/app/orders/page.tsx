@@ -37,13 +37,13 @@ export default function OrdersPage() {
   const [error, setError] = useState("")
   const loadingRef = useRef(false)
 
-  async function loadOrders(silent = false) {
+  async function loadOrders(silent = false, force = false) {
     if (loadingRef.current) return
     loadingRef.current = true
     if (!silent) setLoading(true)
     setError("")
     try {
-      setOrders(await apiGet("/api/orders?view=staff"))
+      setOrders(await apiGet("/api/orders?view=staff", undefined, { force }))
     } catch (err) {
       setError(err instanceof Error ? err.message : "Không tải được đơn hàng.")
     } finally {
@@ -56,7 +56,7 @@ export default function OrdersPage() {
     setError("")
     try {
       await apiPatch(`/api/orders/${orderId}/items`, { itemId, status })
-      await loadOrders(true)
+      await loadOrders(true, true)
     } catch (error) {
       setError(error instanceof Error ? error.message : "Không cập nhật được trạng thái món ăn.")
     }
@@ -66,7 +66,7 @@ export default function OrdersPage() {
     loadOrders()
     const timer = window.setInterval(() => {
       if (document.visibilityState === "visible") loadOrders(true)
-    }, 5000)
+    }, 8000)
     return () => window.clearInterval(timer)
   }, [])
 
@@ -99,7 +99,7 @@ export default function OrdersPage() {
         <div className="mb-6 flex items-center justify-between gap-3">
           <div className="flex gap-2"><button className={`rounded-md px-4 py-3 text-sm font-black shadow-sm ${viewMode === "orders" ? "bg-[#A855F7] text-white" : "bg-[#E8ECEF] text-[#57606A]"}`} onClick={() => setViewMode("orders")}>Xem theo Đơn hàng</button>
           <button className={`rounded-md px-4 py-3 text-sm font-black shadow-sm ${viewMode === "items" ? "bg-[#A855F7] text-white" : "bg-[#E8ECEF] text-[#57606A]"}`} onClick={() => setViewMode("items")}>Xem theo Món ăn</button></div>
-          <button className="rounded-md bg-[#FF4A12] px-4 py-3 text-sm font-black text-white" onClick={() => loadOrders()}>Làm mới</button>
+          <button className="rounded-md bg-[#FF4A12] px-4 py-3 text-sm font-black text-white" onClick={() => loadOrders(false, true)}>Làm mới</button>
         </div>
 
         {viewMode === "items" && <div className="mb-5 flex flex-wrap gap-2">
@@ -116,7 +116,7 @@ export default function OrdersPage() {
 
         {viewMode === "orders" ? (
           <div className="grid gap-5 lg:grid-cols-3">
-            {orders.map((order) => <OrderCard key={order.id} order={order} onChanged={() => loadOrders(true)} onError={setError} />)}
+            {orders.map((order) => <OrderCard key={order.id} order={order} onChanged={() => loadOrders(true, true)} onError={setError} />)}
           </div>
         ) : (
           <div className="grid gap-4 lg:grid-cols-4">

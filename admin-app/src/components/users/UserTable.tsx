@@ -69,9 +69,9 @@ export default function UserTable() {
     return errors
   }, [editing, form.name, form.password, form.phone])
 
-  async function loadUsers() {
+  async function loadUsers(force = false) {
     try {
-      setUsers(await apiGet("/api/admin/users"))
+      setUsers(await apiGet("/api/admin/users", undefined, { force }))
     } catch (error: any) {
       setMessage(error.message)
     }
@@ -115,7 +115,7 @@ export default function UserTable() {
       if (editing) await apiPatch(`/api/admin/users/${editing.id}`, payload)
       else await apiPost("/api/admin/users", payload)
       setOpen(false)
-      await loadUsers()
+      await loadUsers(true)
       setMessage(editing ? "Đã cập nhật người dùng." : "Đã tạo người dùng.")
     } catch (error: any) {
       setMessage(error.message)
@@ -131,7 +131,7 @@ export default function UserTable() {
     try {
       await apiDelete(`/api/admin/users/${deleting.id}`)
       setDeleting(null)
-      await loadUsers()
+      await loadUsers(true)
       setMessage("Đã xóa tài khoản khỏi danh sách hoạt động.")
     } catch (error: any) {
       setMessage(error.message)

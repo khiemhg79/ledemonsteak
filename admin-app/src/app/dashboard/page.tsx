@@ -29,11 +29,11 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState("")
 
-  async function loadReport() {
+  async function loadReport(force = false) {
     setLoading(true)
     setMessage("")
     try {
-      setReport(await apiGet("/api/admin/reports"))
+      setReport(await apiGet("/api/admin/reports", undefined, { force }))
     } catch (error: any) {
       setMessage(error.message || "Lỗi tải dữ liệu, không thể tạo báo cáo.")
     } finally {
@@ -49,7 +49,7 @@ export default function DashboardPage() {
     <div>
       <div className="mb-6 flex items-center justify-between gap-4">
         <h1 className="text-2xl font-black">Tổng quan kinh doanh</h1>
-        <button className="admin-primary" disabled={loading} onClick={loadReport}>{loading ? "Đang tải..." : "Làm mới dữ liệu"}</button>
+        <button className="admin-primary" disabled={loading} onClick={() => loadReport(true)}>{loading ? "Đang tải..." : "Làm mới dữ liệu"}</button>
       </div>
 
       {message && <p className="mb-5 rounded-lg border border-[#7F1D1D] bg-[#2A0E13] px-4 py-3 text-sm text-[#FFB4B4]">{message}</p>}

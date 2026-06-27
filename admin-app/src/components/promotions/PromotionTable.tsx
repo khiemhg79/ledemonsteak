@@ -100,9 +100,9 @@ export default function PromotionTable() {
     return errors
   }, [form])
 
-  async function load() {
+  async function load(force = false) {
     try {
-      setPromos(await apiGet("/api/promotions"))
+      setPromos(await apiGet("/api/promotions", undefined, { force }))
     } catch (error: any) {
       setMessage(error.message)
     }
@@ -167,7 +167,7 @@ export default function PromotionTable() {
       if (editing) await apiPatch(`/api/promotions/${editing.id}`, payload())
       else await apiPost("/api/promotions", payload())
       setOpen(false)
-      await load()
+      await load(true)
       setMessage(editing ? "Đã cập nhật khuyến mãi." : "Đã tạo khuyến mãi.")
     } catch (error: any) {
       setMessage(error.message)
@@ -183,7 +183,7 @@ export default function PromotionTable() {
     try {
       await apiDelete(`/api/promotions/${deleting.id}`)
       setDeleting(null)
-      await load()
+      await load(true)
       setMessage("Đã xóa khuyến mãi khỏi danh sách hoạt động.")
     } catch (error: any) {
       setMessage(error.message)

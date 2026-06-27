@@ -55,9 +55,9 @@ export default function DishTable() {
   const [touched, setTouched] = useState(false)
   const [form, setForm] = useState<DishForm | ComboForm | CategoryForm>(initialDishForm)
 
-  async function loadMenu() {
+  async function loadMenu(force = false) {
     try {
-      setData(await apiGet("/api/menu"))
+      setData(await apiGet("/api/menu", undefined, { force }))
     } catch (error: any) {
       setMessage(error.message)
     }
@@ -204,7 +204,7 @@ export default function DishTable() {
       if (editing) await apiPatch(pathFor(editing), payload())
       else await apiPost(pathFor(), payload())
       setOpen(false)
-      await loadMenu()
+      await loadMenu(true)
       setMessage(editing ? "Đã cập nhật dữ liệu." : "Đã thêm dữ liệu.")
     } catch (error: any) {
       setMessage(error.message)
@@ -220,7 +220,7 @@ export default function DishTable() {
     try {
       await apiDelete(pathFor(deleting))
       setDeleting(null)
-      await loadMenu()
+      await loadMenu(true)
       setMessage(tab === "combos" ? "Đã xóa combo khỏi danh sách hoạt động." : tab === "dishes" ? "Đã xóa món ăn khỏi danh sách hoạt động." : "Đã xóa danh mục khỏi danh sách hoạt động.")
     } catch (error: any) {
       setMessage(error.message)

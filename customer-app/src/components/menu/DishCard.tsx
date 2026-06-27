@@ -29,7 +29,7 @@ export default function DishCard({ id, type, name, price, description, category,
       <article className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-[#F0D7B0]">
         <button className="block w-full text-left" onClick={() => setOpen(true)}>
           <div className="aspect-[1.35] bg-[linear-gradient(135deg,#281511,#8B1A1A)]">
-            {image ? <img src={image} alt={name} className="h-full w-full object-cover" /> : <div className="flex h-full items-center justify-center text-sm font-black text-[#F6D690]">LE MONDE</div>}
+            {image ? <img src={image} alt={name} loading="lazy" decoding="async" className="h-full w-full object-cover" /> : <div className="flex h-full items-center justify-center text-sm font-black text-[#F6D690]">LE MONDE</div>}
           </div>
           <div className="p-3">
             <h3 className="line-clamp-1 text-sm font-black text-[#2B211D]">{name}</h3>
@@ -57,7 +57,7 @@ export default function DishCard({ id, type, name, price, description, category,
 
             <h2 className="pr-10 text-2xl font-black leading-tight text-[#211715]">{name}</h2>
             <div className="mt-4 aspect-[1.28] overflow-hidden rounded-2xl bg-[linear-gradient(135deg,#281511,#8B1A1A)]">
-              {image ? <img src={image} alt={name} className="h-full w-full object-cover" /> : <div className="flex h-full items-center justify-center font-black text-[#F6D690]">LE MONDE STEAK</div>}
+              {image ? <img src={image} alt={name} loading="eager" decoding="async" className="h-full w-full object-cover" /> : <div className="flex h-full items-center justify-center font-black text-[#F6D690]">LE MONDE STEAK</div>}
             </div>
 
             <p className="mt-5 text-sm leading-6 text-[#6F625C]">{description || "Món ăn được chuẩn bị theo tiêu chuẩn phục vụ tại bàn của Le Monde Steak."}</p>

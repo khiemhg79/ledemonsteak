@@ -55,9 +55,9 @@ export default function TablesPage() {
   const [touched, setTouched] = useState(false)
   const [message, setMessage] = useState("")
 
-  async function load() {
+  async function load(force = false) {
     try {
-      setTables(await apiGet("/api/tables"))
+      setTables(await apiGet("/api/tables", undefined, { force }))
     } catch (error: any) {
       setMessage(error.message)
     }
@@ -114,7 +114,7 @@ export default function TablesPage() {
       if (editing) await apiPatch(`/api/tables/${editing.id}`, payload)
       else await apiPost("/api/tables", payload)
       setOpen(false)
-      await load()
+      await load(true)
       setMessage(editing ? "Đã cập nhật bàn." : "Đã thêm bàn.")
     } catch (error: any) {
       setMessage(error.message)
@@ -130,7 +130,7 @@ export default function TablesPage() {
     try {
       await apiDelete(`/api/tables/${deleting.id}`)
       setDeleting(null)
-      await load()
+      await load(true)
       setMessage("Đã xóa bàn khỏi danh sách hoạt động.")
     } catch (error: any) {
       setMessage(error.message)
