@@ -1,11 +1,11 @@
-import { NextRequest, NextResponse } from "next/server"
-import { prisma } from "@/lib/prisma"
-import { corsHeaders, optionsResponse } from "@/lib/cors"
-import { authorize } from "@/lib/apiAuth"
-import { calculatePromotion, PromotionError } from "@/lib/promotion"
-import { attachOrderItems, packOrderLines, StoredOrderLine } from "@/lib/orderLines"
-import { qrTokenError, verifyTableQrToken } from "@/lib/qrToken"
 import { randomUUID } from "crypto"
+import { NextRequest, NextResponse } from "next/server"
+import { authorize } from "@/lib/apiAuth"
+import { corsHeaders, optionsResponse } from "@/lib/cors"
+import { attachOrderItems, packOrderLines, StoredOrderLine } from "@/lib/orderLines"
+import { prisma } from "@/lib/prisma"
+import { calculatePromotion, PromotionError } from "@/lib/promotion"
+import { qrTokenError, verifyTableQrToken } from "@/lib/qrToken"
 
 export async function OPTIONS() { return optionsResponse() }
 
@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
   try {
     const { tableId, userId, items, promoCode, qrToken } = await req.json()
     if (!tableId || !Array.isArray(items) || items.length === 0) {
-      return NextResponse.json({ error: "Bàn và danh sách món là bắt buộc." }, { status: 400, headers: corsHeaders() })
+      return NextResponse.json({ error: "Ban va danh sach mon la bat buoc." }, { status: 400, headers: corsHeaders() })
     }
 
     try {
@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
     if (normalizedItems.some((item: any) =>
       !Number.isInteger(item.quantity) || item.quantity < 1 || (!!item.itemId === !!item.comboId)
     )) {
-      return NextResponse.json({ error: "Dữ liệu món ăn không hợp lệ." }, { status: 400, headers: corsHeaders() })
+      return NextResponse.json({ error: "Du lieu mon an khong hop le." }, { status: 400, headers: corsHeaders() })
     }
 
     const [table, menuItems, combos, customer] = await Promise.all([
@@ -40,15 +40,15 @@ export async function POST(req: NextRequest) {
       userId ? prisma.customer.findUnique({ where: { userId } }) : Promise.resolve(null),
     ])
     if (!table || !table.isActive) {
-      return NextResponse.json({ error: "Bàn không tồn tại hoặc đã ngừng hoạt động." }, { status: 404, headers: corsHeaders() })
+      return NextResponse.json({ error: "Ban khong ton tai hoac da ngung hoat dong." }, { status: 404, headers: corsHeaders() })
     }
     if (table.status === "REQUESTING_BILL") {
-      return NextResponse.json({ error: "Bàn đang yêu cầu thanh toán, không thể tạo thêm đơn." }, { status: 409, headers: corsHeaders() })
+      return NextResponse.json({ error: "Ban dang yeu cau thanh toan, khong the tao them don." }, { status: 409, headers: corsHeaders() })
     }
 
     const itemMap = new Map(menuItems.map((item) => [item.id, item]))
     const comboMap = new Map(combos.map((combo) => [combo.id, combo]))
-    const details: StoredOrderLine[] = normalizedItems.map((item: any) => {
+    const orderLines: StoredOrderLine[] = normalizedItems.map((item: any) => {
       const menuItem = item.itemId ? itemMap.get(item.itemId) : null
       const combo = item.comboId ? comboMap.get(item.comboId) : null
       return {
@@ -62,23 +62,24 @@ export async function POST(req: NextRequest) {
         combo: combo ? { id: combo.id, name: combo.name } : null,
       }
     })
-    if (details.some((detail) => !Number.isFinite(detail.price))) {
-      return NextResponse.json({ error: "Có món không tồn tại hoặc đã ngừng bán." }, { status: 400, headers: corsHeaders() })
+    if (orderLines.some((detail) => !Number.isFinite(detail.price))) {
+      return NextResponse.json({ error: "Co mon khong ton tai hoac da ngung ban." }, { status: 400, headers: corsHeaders() })
     }
 
-    const totalAmount = details.reduce((sum, detail) => sum + detail.price * detail.quantity, 0)
+    const totalAmount = orderLines.reduce((sum, detail) => sum + detail.price * detail.quantity, 0)
     let discount = 0
     let finalAmount = totalAmount
     let appliedPromoCode: string | null = null
     if (promoCode) {
       const auth = authorize(req, ["CUSTOMER"])
       if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status, headers: corsHeaders() })
-      if (userId && auth.user.id !== userId) return NextResponse.json({ error: "Tài khoản không khớp với người đặt món." }, { status: 403, headers: corsHeaders() })
+      if (userId && auth.user.id !== userId) return NextResponse.json({ error: "Tai khoan khong khop voi nguoi dat mon." }, { status: 403, headers: corsHeaders() })
       const calculation = await calculatePromotion(promoCode, totalAmount)
       discount = calculation.discount
       finalAmount = calculation.finalAmount
       appliedPromoCode = calculation.promo.code
     }
+
     const order = await prisma.$transaction(async (tx) => {
       const created = await tx.order.create({
         data: {
@@ -89,7 +90,7 @@ export async function POST(req: NextRequest) {
           discount,
           finalAmount,
           promoCode: appliedPromoCode,
-          customerNotes: packOrderLines(details),
+          customerNotes: packOrderLines(orderLines),
         },
       })
       await tx.table.update({ where: { id: tableId }, data: { status: "OCCUPIED" } })
@@ -99,30 +100,37 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     if (error instanceof PromotionError) return NextResponse.json({ error: error.message }, { status: 400, headers: corsHeaders() })
     console.error("Create order failed", error)
-    return NextResponse.json({ error: "Đặt món thất bại. Vui lòng thử lại sau." }, { status: 500, headers: corsHeaders() })
+    return NextResponse.json({ error: "Dat mon that bai. Vui long thu lai sau." }, { status: 500, headers: corsHeaders() })
   }
 }
 
 export async function GET(req: NextRequest) {
-  const tableId = req.nextUrl.searchParams.get("tableId")
-  const status  = req.nextUrl.searchParams.get("status")
-  const staffView = req.nextUrl.searchParams.get("view") === "staff"
-  if (staffView) {
-    const auth = authorize(req, ["STAFF", "ADMIN"])
-    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status, headers: corsHeaders() })
-  } else if (!tableId) {
-    return NextResponse.json({ error: "Mã bàn là bắt buộc." }, { status: 400, headers: corsHeaders() })
+  try {
+    const tableId = req.nextUrl.searchParams.get("tableId")
+    const status = req.nextUrl.searchParams.get("status")
+    const staffView = req.nextUrl.searchParams.get("view") === "staff"
+    if (staffView) {
+      const auth = authorize(req, ["STAFF", "ADMIN"])
+      if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status, headers: corsHeaders() })
+    } else if (!tableId) {
+      return NextResponse.json({ error: "Ma ban la bat buoc." }, { status: 400, headers: corsHeaders() })
+    }
+
+    const where: any = {}
+    if (tableId) where.tableId = tableId
+    if (status && status !== "ALL") where.status = status
+    else if (!status) where.status = { in: ["PENDING", "CONFIRMED"] }
+
+    const orders = await prisma.order.findMany({
+      where,
+      include: {
+        table: { select: { id: true, number: true, status: true } },
+      },
+      orderBy: { createdAt: staffView ? "asc" : "desc" },
+    })
+    return NextResponse.json(orders.map(attachOrderItems), { headers: corsHeaders() })
+  } catch (error) {
+    console.error("Load orders failed", error)
+    return NextResponse.json({ error: "Khong tai duoc danh sach don hang." }, { status: 500, headers: corsHeaders() })
   }
-  const where: any = {}
-  if (tableId) where.tableId = tableId
-  if (status && status !== "ALL") where.status = status
-  else if (!status) where.status = { in: ["PENDING", "CONFIRMED"] }
-  const orders = await prisma.order.findMany({
-    where,
-    include: {
-      table: { select: { id: true, number: true, status: true } },
-    },
-    orderBy: { createdAt: staffView ? "asc" : "desc" },
-  })
-  return NextResponse.json(orders.map(attachOrderItems), { headers: corsHeaders() })
 }
