@@ -35,7 +35,6 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
             customerId: order.customerId,
             tableId: order.tableId,
             subtotal: order.totalAmount,
-            discount: order.discount,
             total: order.finalAmount,
           },
         })
@@ -57,7 +56,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         })
         await tx.table.update({ where: { id: order.tableId! }, data: { status: "EMPTY" } })
         await tx.order.update({ where: { id: params.id }, data: { status: "COMPLETED" } })
-        if (order.promoCode) await tx.promotion.update({ where: { code: order.promoCode }, data: { usageCount: { increment: 1 } } })
+        if (order.promoCode) await tx.promotion.update({ where: { id: order.promoCode }, data: { usageCount: { increment: 1 } } })
         const completedOrder = await tx.order.findUnique({
           where: { id: params.id },
           include: { table: true, customer: { include: { user: true } } },
@@ -87,7 +86,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         const calculation = await calculatePromotion(requestedPromoCode, order.totalAmount)
         discount = calculation.discount
         finalAmount = calculation.finalAmount
-        appliedPromoCode = calculation.promo.code
+        appliedPromoCode = calculation.promo.id
       } catch (error) {
         if (error instanceof PromotionError) return NextResponse.json({ error: error.message }, { status: 400, headers: corsHeaders() })
         throw error
@@ -106,7 +105,6 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         customerId: order.customerId,
         tableId: order.tableId,
         subtotal: updated.totalAmount,
-        discount: updated.discount,
         total: updated.finalAmount,
         status: "UNPAID",
       },
@@ -116,7 +114,6 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         customerId: order.customerId,
         tableId: order.tableId,
         subtotal: updated.totalAmount,
-        discount: updated.discount,
         total: updated.finalAmount,
         status: "UNPAID",
       },

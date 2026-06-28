@@ -147,8 +147,8 @@ model Item {
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  categoryId  String
-  category    Category @relation(fields: [categoryId], references: [id])
+  categoryId  String?
+  category    Category? @relation(fields: [categoryId], references: [id])
 
   @@map("items")
 }
@@ -194,7 +194,6 @@ model Order {
 model Promotion {
   id            String       @id @default(cuid())
   name          String
-  code          String       @unique
   discountType  DiscountType @map("type")
   discountValue Float        @map("value")
   minOrder      Float        @default(0) @map("minOrderAmount")
@@ -221,7 +220,6 @@ model Invoice {
   customerName    String?
   customerTaxCode String?
   taxAmount       Float          @default(0)
-  discount        Float          @default(0)
   total           Float          @default(0) @map("totalAmount")
   paymentMethod   PaymentMethod?
   status          InvoiceStatus  @default(UNPAID)

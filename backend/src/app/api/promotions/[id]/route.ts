@@ -6,7 +6,6 @@ import { corsHeaders, optionsResponse } from "@/lib/cors"
 
 type PromotionPayload = {
   name: string
-  code: string
   discountType: DiscountType
   discountValue: number
   minOrder: number
@@ -22,10 +21,6 @@ function cleanText(value: unknown, max = 50) {
   return String(value ?? "").trim().replace(/\s+/g, " ").slice(0, max)
 }
 
-function cleanCode(value: unknown) {
-  return String(value ?? "").trim().toUpperCase().replace(/[^A-Z0-9_-]/g, "").slice(0, 30)
-}
-
 function toNumber(value: unknown, fallback = 0) {
   if (value === "" || value == null) return fallback
   const number = Number(value)
@@ -37,9 +32,12 @@ function toDate(value: unknown) {
   return Number.isNaN(date.getTime()) ? null : date
 }
 
+function exposePromotion<T extends { id: string }>(promo: T) {
+  return { ...promo, code: promo.id }
+}
+
 function buildPayload(body: any): { data?: PromotionPayload; error?: string } {
   const name = cleanText(body.name, 50)
-  const code = cleanCode(body.code)
   const discountType = body.discountType === DiscountType.FIXED ? DiscountType.FIXED : DiscountType.PERCENTAGE
   const discountValue = toNumber(body.discountValue)
   const minOrder = toNumber(body.minOrder, 0)
@@ -50,18 +48,17 @@ function buildPayload(body: any): { data?: PromotionPayload; error?: string } {
   const description = cleanText(body.description, 255) || null
   const isActive = body.isActive !== false
 
-  if (!name) return { error: "Vui lòng nhập tên chương trình khuyến mãi." }
-  if (!code) return { error: "Vui lòng nhập mã khuyến mãi." }
-  if (!Number.isFinite(discountValue) || discountValue <= 0) return { error: "Giá trị khuyến mãi không hợp lệ." }
-  if (discountType === DiscountType.PERCENTAGE && discountValue > 100) return { error: "Giá trị phần trăm không được lớn hơn 100%." }
-  if (discountType === DiscountType.FIXED && discountValue > 999999) return { error: "Giá trị giảm theo số tiền tối đa là 999.999đ." }
-  if (!Number.isFinite(minOrder) || minOrder < 0) return { error: "Đơn tối thiểu không hợp lệ." }
-  if (maxDiscount != null && (!Number.isFinite(maxDiscount) || maxDiscount < 0)) return { error: "Giảm tối đa không hợp lệ." }
-  if (usageLimit != null && (!Number.isFinite(usageLimit) || usageLimit <= 0)) return { error: "Giới hạn sử dụng không hợp lệ." }
-  if (!startDate || !endDate) return { error: "Ngày bắt đầu hoặc ngày kết thúc không hợp lệ." }
-  if (endDate < startDate) return { error: "Ngày kết thúc phải sau hoặc bằng ngày bắt đầu." }
+  if (!name) return { error: "Vui long nhap ten chuong trinh khuyen mai." }
+  if (!Number.isFinite(discountValue) || discountValue <= 0) return { error: "Gia tri khuyen mai khong hop le." }
+  if (discountType === DiscountType.PERCENTAGE && discountValue > 100) return { error: "Gia tri phan tram khong duoc lon hon 100%." }
+  if (discountType === DiscountType.FIXED && discountValue > 999999) return { error: "Gia tri giam theo so tien toi da la 999.999d." }
+  if (!Number.isFinite(minOrder) || minOrder < 0) return { error: "Don toi thieu khong hop le." }
+  if (maxDiscount != null && (!Number.isFinite(maxDiscount) || maxDiscount < 0)) return { error: "Giam toi da khong hop le." }
+  if (usageLimit != null && (!Number.isFinite(usageLimit) || usageLimit <= 0)) return { error: "Gioi han su dung khong hop le." }
+  if (!startDate || !endDate) return { error: "Ngay bat dau hoac ngay ket thuc khong hop le." }
+  if (endDate < startDate) return { error: "Ngay ket thuc phai sau hoac bang ngay bat dau." }
 
-  return { data: { name, code, discountType, discountValue, minOrder, maxDiscount, usageLimit, startDate, endDate, description, isActive } }
+  return { data: { name, discountType, discountValue, minOrder, maxDiscount, usageLimit, startDate, endDate, description, isActive } }
 }
 
 export async function OPTIONS() {
@@ -75,11 +72,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const parsed = buildPayload(await req.json())
   if (parsed.error || !parsed.data) return NextResponse.json({ error: parsed.error }, { status: 400, headers: corsHeaders() })
 
-  const duplicate = await prisma.promotion.findFirst({ where: { code: parsed.data.code, NOT: { id: params.id } }, select: { id: true } })
-  if (duplicate) return NextResponse.json({ error: "Mã khuyến mãi đã tồn tại." }, { status: 409, headers: corsHeaders() })
-
   const promo = await prisma.promotion.update({ where: { id: params.id }, data: parsed.data })
-  return NextResponse.json(promo, { headers: corsHeaders() })
+  return NextResponse.json(exposePromotion(promo), { headers: corsHeaders() })
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
@@ -87,5 +81,5 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status, headers: corsHeaders() })
 
   await prisma.promotion.update({ where: { id: params.id }, data: { isActive: false } })
-  return NextResponse.json({ message: "Đã xóa khuyến mãi khỏi danh sách hoạt động." }, { headers: corsHeaders() })
+  return NextResponse.json({ message: "Da xoa khuyen mai khoi danh sach hoat dong." }, { headers: corsHeaders() })
 }

@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
       const calculation = await calculatePromotion(promoCode, totalAmount)
       discount = calculation.discount
       finalAmount = calculation.finalAmount
-      appliedPromoCode = calculation.promo.code
+      appliedPromoCode = calculation.promo.id
     }
 
     const order = await prisma.$transaction(async (tx) => {

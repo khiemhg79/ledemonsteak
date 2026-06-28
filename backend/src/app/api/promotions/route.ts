@@ -5,8 +5,8 @@ import { authorize } from "@/lib/apiAuth"
 import { corsHeaders, optionsResponse } from "@/lib/cors"
 
 type PromotionPayload = {
+  id: string
   name: string
-  code: string
   discountType: DiscountType
   discountValue: number
   minOrder: number
@@ -37,9 +37,13 @@ function toDate(value: unknown) {
   return Number.isNaN(date.getTime()) ? null : date
 }
 
+function exposePromotion<T extends { id: string }>(promo: T) {
+  return { ...promo, code: promo.id }
+}
+
 function buildPayload(body: any): { data?: PromotionPayload; error?: string } {
   const name = cleanText(body.name, 50)
-  const code = cleanCode(body.code)
+  const id = cleanCode(body.code || body.id)
   const discountType = body.discountType === DiscountType.FIXED ? DiscountType.FIXED : DiscountType.PERCENTAGE
   const discountValue = toNumber(body.discountValue)
   const minOrder = toNumber(body.minOrder, 0)
@@ -50,21 +54,21 @@ function buildPayload(body: any): { data?: PromotionPayload; error?: string } {
   const description = cleanText(body.description, 255) || null
   const isActive = body.isActive !== false
 
-  if (!name) return { error: "Vui lòng nhập tên chương trình khuyến mãi." }
-  if (!code) return { error: "Vui lòng nhập mã khuyến mãi." }
-  if (!Number.isFinite(discountValue) || discountValue <= 0) return { error: "Giá trị khuyến mãi không hợp lệ." }
-  if (discountType === DiscountType.PERCENTAGE && discountValue > 100) return { error: "Giá trị phần trăm không được lớn hơn 100%." }
-  if (discountType === DiscountType.FIXED && discountValue > 999999) return { error: "Giá trị giảm theo số tiền tối đa là 999.999đ." }
-  if (!Number.isFinite(minOrder) || minOrder < 0) return { error: "Đơn tối thiểu không hợp lệ." }
-  if (maxDiscount != null && (!Number.isFinite(maxDiscount) || maxDiscount < 0)) return { error: "Giảm tối đa không hợp lệ." }
-  if (usageLimit != null && (!Number.isFinite(usageLimit) || usageLimit <= 0)) return { error: "Giới hạn sử dụng không hợp lệ." }
-  if (!startDate || !endDate) return { error: "Ngày bắt đầu hoặc ngày kết thúc không hợp lệ." }
-  if (endDate < startDate) return { error: "Ngày kết thúc phải sau hoặc bằng ngày bắt đầu." }
+  if (!name) return { error: "Vui long nhap ten chuong trinh khuyen mai." }
+  if (!id) return { error: "Vui long nhap ma khuyen mai." }
+  if (!Number.isFinite(discountValue) || discountValue <= 0) return { error: "Gia tri khuyen mai khong hop le." }
+  if (discountType === DiscountType.PERCENTAGE && discountValue > 100) return { error: "Gia tri phan tram khong duoc lon hon 100%." }
+  if (discountType === DiscountType.FIXED && discountValue > 999999) return { error: "Gia tri giam theo so tien toi da la 999.999d." }
+  if (!Number.isFinite(minOrder) || minOrder < 0) return { error: "Don toi thieu khong hop le." }
+  if (maxDiscount != null && (!Number.isFinite(maxDiscount) || maxDiscount < 0)) return { error: "Giam toi da khong hop le." }
+  if (usageLimit != null && (!Number.isFinite(usageLimit) || usageLimit <= 0)) return { error: "Gioi han su dung khong hop le." }
+  if (!startDate || !endDate) return { error: "Ngay bat dau hoac ngay ket thuc khong hop le." }
+  if (endDate < startDate) return { error: "Ngay ket thuc phai sau hoac bang ngay bat dau." }
 
   return {
     data: {
+      id,
       name,
-      code,
       discountType,
       discountValue,
       minOrder,
@@ -87,12 +91,12 @@ export async function GET(req: NextRequest) {
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status, headers: corsHeaders() })
 
   const promos = await prisma.promotion.findMany({ orderBy: { startDate: "desc" } })
-  if (auth.user.role === "ADMIN") return NextResponse.json(promos, { headers: corsHeaders() })
+  if (auth.user.role === "ADMIN") return NextResponse.json(promos.map(exposePromotion), { headers: corsHeaders() })
 
   const now = new Date()
   const available = promos
     .filter((promo) => promo.isActive && promo.endDate >= now && (promo.usageLimit == null || promo.usageCount < promo.usageLimit))
-    .map((promo) => ({ ...promo, availabilityStatus: promo.startDate > now ? "UPCOMING" : "ACTIVE" }))
+    .map((promo) => exposePromotion({ ...promo, availabilityStatus: promo.startDate > now ? "UPCOMING" : "ACTIVE" }))
   return NextResponse.json(available, { headers: corsHeaders() })
 }
 
@@ -103,10 +107,9 @@ export async function POST(req: NextRequest) {
   const parsed = buildPayload(await req.json())
   if (parsed.error || !parsed.data) return NextResponse.json({ error: parsed.error }, { status: 400, headers: corsHeaders() })
 
-  const exists = await prisma.promotion.findUnique({ where: { code: parsed.data.code }, select: { id: true } })
-  if (exists) return NextResponse.json({ error: "Mã khuyến mãi đã tồn tại." }, { status: 409, headers: corsHeaders() })
+  const exists = await prisma.promotion.findUnique({ where: { id: parsed.data.id }, select: { id: true } })
+  if (exists) return NextResponse.json({ error: "Ma khuyen mai da ton tai." }, { status: 409, headers: corsHeaders() })
 
-  const id = `promo_${parsed.data.code.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "")}`
-  const promo = await prisma.promotion.create({ data: { ...parsed.data, id } })
-  return NextResponse.json(promo, { status: 201, headers: corsHeaders() })
+  const promo = await prisma.promotion.create({ data: parsed.data })
+  return NextResponse.json(exposePromotion(promo), { status: 201, headers: corsHeaders() })
 }

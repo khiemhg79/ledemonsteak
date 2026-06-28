@@ -85,19 +85,19 @@ async function main() {
   })
 
   await prisma.promotion.upsert({
-    where: { code: "NEWGUEST" },
+    where: { id: "NEWGUEST" },
     update: {},
-    create: { id: "promo_new", name: "Giam 10% Khach Moi", code: "NEWGUEST", discountType: "PERCENTAGE", discountValue: 10, minOrder: 200000, maxDiscount: 100000, usageLimit: 500, startDate: new Date("2025-01-01"), endDate: new Date("2026-12-31"), description: "Uu dai cho khach lan dau." },
+    create: { id: "NEWGUEST", name: "Giam 10% Khach Moi", discountType: "PERCENTAGE", discountValue: 10, minOrder: 200000, maxDiscount: 100000, usageLimit: 500, startDate: new Date("2025-01-01"), endDate: new Date("2026-12-31"), description: "Uu dai cho khach lan dau." },
   })
   await prisma.promotion.upsert({
-    where: { code: "WEEKEND50" },
+    where: { id: "WEEKEND50" },
     update: {},
-    create: { id: "promo_weekend", name: "Giam 50K Cuoi Tuan", code: "WEEKEND50", discountType: "FIXED", discountValue: 50000, minOrder: 300000, usageLimit: 200, startDate: new Date("2025-01-01"), endDate: new Date("2026-12-31"), description: "Uu dai cuoi tuan cho hoa don tu 300.000d." },
+    create: { id: "WEEKEND50", name: "Giam 50K Cuoi Tuan", discountType: "FIXED", discountValue: 50000, minOrder: 300000, usageLimit: 200, startDate: new Date("2025-01-01"), endDate: new Date("2026-12-31"), description: "Uu dai cuoi tuan cho hoa don tu 300.000d." },
   })
   await prisma.promotion.upsert({
-    where: { code: "BIRTHDAY" },
+    where: { id: "BIRTHDAY" },
     update: {},
-    create: { id: "promo_birthday", name: "Giam 20% Sinh Nhat", code: "BIRTHDAY", discountType: "PERCENTAGE", discountValue: 20, minOrder: 150000, maxDiscount: 150000, usageLimit: 1000, startDate: new Date("2025-01-01"), endDate: new Date("2026-12-31"), description: "Giam gia nhan dip sinh nhat." },
+    create: { id: "BIRTHDAY", name: "Giam 20% Sinh Nhat", discountType: "PERCENTAGE", discountValue: 20, minOrder: 150000, maxDiscount: 150000, usageLimit: 1000, startDate: new Date("2025-01-01"), endDate: new Date("2026-12-31"), description: "Giam gia nhan dip sinh nhat." },
   })
 
   console.log("Seed xong!")
