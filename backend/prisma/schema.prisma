@@ -220,7 +220,7 @@ model Invoice {
   taxAmount       Float          @default(0)
   total           Float          @default(0) @map("totalAmount")
   paymentMethod   String?
-  status          String         @default("UNPAID")
+  status          InvoiceStatus  @default(UNPAID)
   issuedAt        DateTime       @default(now()) @map("createdAt")
   updatedAt       DateTime       @updatedAt
   paidAt          DateTime?
