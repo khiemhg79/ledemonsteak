@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server"
-import { DiscountType } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
 import { authorize } from "@/lib/apiAuth"
 import { corsHeaders, optionsResponse } from "@/lib/cors"
@@ -7,7 +6,7 @@ import { corsHeaders, optionsResponse } from "@/lib/cors"
 type PromotionPayload = {
   id: string
   name: string
-  discountType: DiscountType
+  discountType: string
   discountValue: number
   minOrder: number
   maxDiscount: number | null
@@ -44,7 +43,7 @@ function exposePromotion<T extends { id: string }>(promo: T) {
 function buildPayload(body: any): { data?: PromotionPayload; error?: string } {
   const name = cleanText(body.name, 50)
   const id = cleanCode(body.code || body.id)
-  const discountType = body.discountType === DiscountType.FIXED ? DiscountType.FIXED : DiscountType.PERCENTAGE
+  const discountType = body.discountType === "FIXED" ? "FIXED" : "PERCENTAGE"
   const discountValue = toNumber(body.discountValue)
   const minOrder = toNumber(body.minOrder, 0)
   const maxDiscount = body.maxDiscount === "" || body.maxDiscount == null ? null : toNumber(body.maxDiscount)
@@ -57,8 +56,8 @@ function buildPayload(body: any): { data?: PromotionPayload; error?: string } {
   if (!name) return { error: "Vui long nhap ten chuong trinh khuyen mai." }
   if (!id) return { error: "Vui long nhap ma khuyen mai." }
   if (!Number.isFinite(discountValue) || discountValue <= 0) return { error: "Gia tri khuyen mai khong hop le." }
-  if (discountType === DiscountType.PERCENTAGE && discountValue > 100) return { error: "Gia tri phan tram khong duoc lon hon 100%." }
-  if (discountType === DiscountType.FIXED && discountValue > 999999) return { error: "Gia tri giam theo so tien toi da la 999.999d." }
+  if (discountType === "PERCENTAGE" && discountValue > 100) return { error: "Gia tri phan tram khong duoc lon hon 100%." }
+  if (discountType === "FIXED" && discountValue > 999999) return { error: "Gia tri giam theo so tien toi da la 999.999d." }
   if (!Number.isFinite(minOrder) || minOrder < 0) return { error: "Don toi thieu khong hop le." }
   if (maxDiscount != null && (!Number.isFinite(maxDiscount) || maxDiscount < 0)) return { error: "Giam toi da khong hop le." }
   if (usageLimit != null && (!Number.isFinite(usageLimit) || usageLimit <= 0)) return { error: "Gioi han su dung khong hop le." }

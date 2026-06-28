@@ -24,56 +24,61 @@ export async function OPTIONS() {
 }
 
 export async function GET(req: NextRequest) {
-  const denied = adminOnly(req)
-  if (denied) return denied
+  try {
+    const denied = adminOnly(req)
+    if (denied) return denied
 
-  const completedOrders = await prisma.order.findMany({
-    where: { status: "COMPLETED" },
-    orderBy: { createdAt: "asc" },
-    select: { id: true, finalAmount: true, createdAt: true, customerNotes: true },
-  })
+    const completedOrders = await prisma.order.findMany({
+      where: { status: "COMPLETED" },
+      orderBy: { createdAt: "asc" },
+      select: { id: true, finalAmount: true, createdAt: true, customerNotes: true },
+    })
 
-  const monthlyMap = new Map<string, { month: string; label: string; revenue: number; orders: number }>()
-  for (const order of completedOrders) {
-    const key = monthKey(order.createdAt)
-    const current = monthlyMap.get(key) ?? { month: key, label: monthLabel(key), revenue: 0, orders: 0 }
-    current.revenue += order.finalAmount
-    current.orders += 1
-    monthlyMap.set(key, current)
-  }
-
-  const topMap = new Map<string, { name: string; quantity: number; revenue: number }>()
-  let comboItems = 0
-  let dishItems = 0
-  for (const order of completedOrders) {
-    for (const detail of parseOrderLines(order.customerNotes)) {
-      if (detail.comboId) comboItems += detail.quantity
-      else dishItems += detail.quantity
-
-      const name = detail.combo?.name ?? detail.item?.name ?? "Khac"
-      const current = topMap.get(name) ?? { name, quantity: 0, revenue: 0 }
-      current.quantity += detail.quantity
-      current.revenue += detail.price * detail.quantity
-      topMap.set(name, current)
+    const monthlyMap = new Map<string, { month: string; label: string; revenue: number; orders: number }>()
+    for (const order of completedOrders) {
+      const key = monthKey(order.createdAt)
+      const current = monthlyMap.get(key) ?? { month: key, label: monthLabel(key), revenue: 0, orders: 0 }
+      current.revenue += order.finalAmount
+      current.orders += 1
+      monthlyMap.set(key, current)
     }
+
+    const topMap = new Map<string, { name: string; quantity: number; revenue: number }>()
+    let comboItems = 0
+    let dishItems = 0
+    for (const order of completedOrders) {
+      for (const detail of parseOrderLines(order.customerNotes)) {
+        if (detail.comboId) comboItems += detail.quantity
+        else dishItems += detail.quantity
+
+        const name = detail.combo?.name ?? detail.item?.name ?? "Khac"
+        const current = topMap.get(name) ?? { name, quantity: 0, revenue: 0 }
+        current.quantity += detail.quantity
+        current.revenue += detail.price * detail.quantity
+        topMap.set(name, current)
+      }
+    }
+
+    const monthly = Array.from(monthlyMap.values())
+    const totalOrders = completedOrders.length
+    const totalRevenue = completedOrders.reduce((sum, order) => sum + order.finalAmount, 0)
+    const currentMonth = monthly.at(-1)
+    const previousMonth = monthly.at(-2)
+    const mom = previousMonth && previousMonth.revenue > 0
+      ? ((currentMonth?.revenue ?? 0) - previousMonth.revenue) / previousMonth.revenue * 100
+      : null
+
+    return NextResponse.json({
+      totalOrders,
+      totalRevenue,
+      averageOrderValue: totalOrders ? Math.round(totalRevenue / totalOrders) : 0,
+      mom,
+      topDishes: Array.from(topMap.values()).sort((a, b) => b.quantity - a.quantity).slice(0, 10),
+      comboRatio: { comboItems, dishItems },
+      monthly,
+    }, { headers: corsHeaders() })
+  } catch (error) {
+    console.error("Load admin reports failed", error)
+    return NextResponse.json({ error: "Khong tai duoc bao cao." }, { status: 500, headers: corsHeaders() })
   }
-
-  const monthly = Array.from(monthlyMap.values())
-  const totalOrders = completedOrders.length
-  const totalRevenue = completedOrders.reduce((sum, order) => sum + order.finalAmount, 0)
-  const currentMonth = monthly.at(-1)
-  const previousMonth = monthly.at(-2)
-  const mom = previousMonth && previousMonth.revenue > 0
-    ? ((currentMonth?.revenue ?? 0) - previousMonth.revenue) / previousMonth.revenue * 100
-    : null
-
-  return NextResponse.json({
-    totalOrders,
-    totalRevenue,
-    averageOrderValue: totalOrders ? Math.round(totalRevenue / totalOrders) : 0,
-    mom,
-    topDishes: Array.from(topMap.values()).sort((a, b) => b.quantity - a.quantity).slice(0, 10),
-    comboRatio: { comboItems, dishItems },
-    monthly,
-  }, { headers: corsHeaders() })
 }

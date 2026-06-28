@@ -112,7 +112,7 @@ model Table {
   id        String      @id @default(cuid())
   number    String      @unique @map("tableNumber")
   capacity  Int         @default(2)
-  status    TableStatus @default(EMPTY)
+  status    String      @default("EMPTY")
   isActive  Boolean     @default(true)
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt
@@ -172,7 +172,7 @@ model Order {
   tableId       String?
   userId        String?
   customerId    String?
-  status        OrderStatus   @default(PENDING) @map("orderStatus")
+  status        String        @default("PENDING") @map("orderStatus")
   totalAmount   Float         @default(0) @map("subTotal")
   taxAmount     Float         @default(0)
   serviceCharge Float         @default(0)
@@ -194,7 +194,7 @@ model Order {
 model Promotion {
   id            String       @id @default(cuid())
   name          String
-  discountType  DiscountType @map("type")
+  discountType  String       @default("PERCENTAGE") @map("type")
   discountValue Float        @map("value")
   minOrder      Float        @default(0) @map("minOrderAmount")
   maxDiscount   Float?
@@ -221,8 +221,8 @@ model Invoice {
   customerTaxCode String?
   taxAmount       Float          @default(0)
   total           Float          @default(0) @map("totalAmount")
-  paymentMethod   PaymentMethod?
-  status          InvoiceStatus  @default(UNPAID)
+  paymentMethod   String?
+  status          String         @default("UNPAID")
   issuedAt        DateTime       @default(now()) @map("createdAt")
   updatedAt       DateTime       @updatedAt
   paidAt          DateTime?
@@ -239,11 +239,11 @@ model Payment {
   id              String        @id @default(cuid())
   invoiceId       String?
   orderId         String?
-  method          PaymentMethod @default(CASH) @map("paymentMethod")
+  method          String        @default("CASH") @map("paymentMethod")
   amount          Float
   paidAmount      Float         @default(0)
   changeAmount    Float         @default(0)
-  status          PaymentStatus @default(PENDING) @map("paymentStatus")
+  status          String        @default("PENDING") @map("paymentStatus")
   paidAt          DateTime?
   transactionCode String?
   createdAt       DateTime      @default(now())
