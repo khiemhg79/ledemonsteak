@@ -99,8 +99,6 @@ model Customer {
   loyaltyPoints Int       @default(0)
   totalSpent    Float     @default(0)
   isActive      Boolean   @default(true)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
   user          User?     @relation(fields: [userId], references: [id])
   orders        Order[]
   invoices      Invoice[]

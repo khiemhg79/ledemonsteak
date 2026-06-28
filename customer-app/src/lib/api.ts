@@ -2,6 +2,7 @@ function apiBase() {
   const configured = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "")
   if (configured && (typeof window === "undefined" || window.location.protocol === "https:")) return configured
   if (typeof window !== "undefined") {
+    if (window.location.hostname.endsWith(".vercel.app")) return "https://ledemonsteak.vercel.app"
     return `${window.location.protocol}//${window.location.hostname}:4000`
   }
   return configured || "http://localhost:4000"
