@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { authorize } from "@/lib/apiAuth"
 import { corsHeaders, optionsResponse } from "@/lib/cors"
 import { prisma } from "@/lib/prisma"
+import { attachOrderItems } from "@/lib/orderLines"
 
 export async function OPTIONS() { return optionsResponse() }
 
@@ -15,20 +16,11 @@ export async function GET(req: NextRequest) {
       table: true,
       customer: { include: { user: true } },
       payments: { where: { status: "SUCCESS" }, orderBy: { paidAt: "desc" }, take: 1 },
-      order: {
-        include: {
-          details: {
-            include: {
-              item: { select: { id: true, name: true } },
-              combo: { select: { id: true, name: true } },
-            },
-          },
-        },
-      },
+      order: true,
     },
   })
   return NextResponse.json(invoices.map((invoice) => ({
     ...invoice,
-    order: { ...invoice.order, items: invoice.order.details },
+    order: attachOrderItems(invoice.order),
   })), { headers: corsHeaders() })
 }

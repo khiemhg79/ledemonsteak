@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { authorize } from "@/lib/apiAuth"
 import { corsHeaders, optionsResponse } from "@/lib/cors"
 import { prisma } from "@/lib/prisma"
+import { parseOrderLines } from "@/lib/orderLines"
 
 function adminOnly(req: NextRequest) {
   const auth = authorize(req, ["ADMIN"])
@@ -26,20 +27,11 @@ export async function GET(req: NextRequest) {
   const denied = adminOnly(req)
   if (denied) return denied
 
-  const [completedOrders, orderDetails] = await Promise.all([
-    prisma.order.findMany({
-      where: { status: "COMPLETED" },
-      orderBy: { createdAt: "asc" },
-      select: { id: true, finalAmount: true, createdAt: true },
-    }),
-    prisma.orderDetail.findMany({
-      where: { order: { status: "COMPLETED" } },
-      include: {
-        item: { select: { name: true } },
-        combo: { select: { name: true } },
-      },
-    }),
-  ])
+  const completedOrders = await prisma.order.findMany({
+    where: { status: "COMPLETED" },
+    orderBy: { createdAt: "asc" },
+    select: { id: true, finalAmount: true, createdAt: true, customerNotes: true },
+  })
 
   const monthlyMap = new Map<string, { month: string; label: string; revenue: number; orders: number }>()
   for (const order of completedOrders) {
@@ -53,15 +45,17 @@ export async function GET(req: NextRequest) {
   const topMap = new Map<string, { name: string; quantity: number; revenue: number }>()
   let comboItems = 0
   let dishItems = 0
-  for (const detail of orderDetails) {
-    if (detail.comboId) comboItems += detail.quantity
-    else dishItems += detail.quantity
+  for (const order of completedOrders) {
+    for (const detail of parseOrderLines(order.customerNotes)) {
+      if (detail.comboId) comboItems += detail.quantity
+      else dishItems += detail.quantity
 
-    const name = detail.combo?.name ?? detail.item?.name ?? "Khác"
-    const current = topMap.get(name) ?? { name, quantity: 0, revenue: 0 }
-    current.quantity += detail.quantity
-    current.revenue += detail.price * detail.quantity
-    topMap.set(name, current)
+      const name = detail.combo?.name ?? detail.item?.name ?? "Khac"
+      const current = topMap.get(name) ?? { name, quantity: 0, revenue: 0 }
+      current.quantity += detail.quantity
+      current.revenue += detail.price * detail.quantity
+      topMap.set(name, current)
+    }
   }
 
   const monthly = Array.from(monthlyMap.values())

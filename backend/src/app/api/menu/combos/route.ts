@@ -71,12 +71,6 @@ export async function POST(req: NextRequest) {
     if (activeItems !== parsed.items.length) return NextResponse.json({ error: "Danh sách món trong combo không hợp lệ." }, { status: 400, headers: corsHeaders() })
   }
 
-  const combo = await prisma.combo.create({
-    data: {
-      ...parsed.data,
-      items: { create: parsed.items.map((item) => ({ itemId: item.itemId, quantity: item.quantity })) },
-    },
-    include: { items: { include: { item: true } } },
-  })
-  return NextResponse.json(combo, { status: 201, headers: corsHeaders() })
+  const combo = await prisma.combo.create({ data: parsed.data })
+  return NextResponse.json({ ...combo, items: parsed.items }, { status: 201, headers: corsHeaders() })
 }

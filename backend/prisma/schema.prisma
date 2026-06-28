@@ -1,6 +1,7 @@
 generator client {
   provider = "prisma-client-js"
 }
+
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
@@ -57,181 +58,181 @@ enum PaymentMethod {
   E_WALLET
 }
 
+model UserRole {
+  id          String   @id
+  name        String   @unique @map("roleName")
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("roles")
+}
+
 model User {
-  id        String   @id @default(cuid())
-  name      String
-  phone     String   @unique
-  password  String
-  email     String?
-  role      Role     @default(CUSTOMER)
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  orders    Order[]
-  customer  Customer?
+  id          String    @id @default(cuid())
+  name        String    @map("username")
+  phone       String    @unique
+  password    String
+  email       String?
+  role        Role      @default(CUSTOMER)
+  isActive    Boolean   @default(true)
+  lastLoginAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  orders      Order[]
+  customer    Customer?
 
   @@map("users")
 }
+
 model Customer {
-  id                 String              @id @default(cuid())
-  userId             String?             @unique
-  name               String
-  phone              String              @unique
-  email              String?
-  address            String?
-  birthday           DateTime?
-  isActive           Boolean             @default(true)
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @updatedAt
-  user               User?               @relation(fields: [userId], references: [id])
-  orders             Order[]
-  customerPromotions CustomerPromotion[]
-  invoices           Invoice[]
+  id            String    @id @default(cuid())
+  userId        String?   @unique
+  name          String    @map("fullName")
+  phone         String    @unique
+  email         String?
+  address       String?
+  city          String?
+  district      String?
+  birthday      DateTime? @map("dateOfBirth")
+  customerType  String    @default("GUEST")
+  loyaltyPoints Int       @default(0)
+  totalSpent    Float     @default(0)
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  user          User?     @relation(fields: [userId], references: [id])
+  orders        Order[]
+  invoices      Invoice[]
 
   @@map("customers")
 }
+
 model Table {
-  id       String      @id @default(cuid())
-  number   String      @unique
-  capacity Int         @default(2)
-  status   TableStatus @default(EMPTY)
-  isActive Boolean     @default(true)
-  orders   Order[]
-  invoices Invoice[]
+  id        String      @id @default(cuid())
+  number    String      @unique @map("tableNumber")
+  capacity  Int         @default(2)
+  status    TableStatus @default(EMPTY)
+  isActive  Boolean     @default(true)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  orders    Order[]
+  invoices  Invoice[]
 
   @@map("tables")
 }
+
 model Category {
   id        String   @id @default(cuid())
-  name      String
-  desc      String?
+  name      String   @map("categoryName")
+  desc      String?  @map("description")
+  image     String?
   sortOrder Int      @default(0)
   isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
   items     Item[]
 
   @@map("categories")
 }
+
 model Item {
-  id          String      @id @default(cuid())
+  id          String   @id @default(cuid())
   name        String
   price       Float
   description String?
   image       String?
-  isActive    Boolean     @default(true)
+  isAvailable Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
   categoryId  String
-  category    Category    @relation(fields: [categoryId], references: [id])
-  orderDetails OrderDetail[]
-  comboItems  ComboItem[]
+  category    Category @relation(fields: [categoryId], references: [id])
 
   @@map("items")
 }
+
 model Combo {
-  id          String      @id @default(cuid())
+  id          String   @id @default(cuid())
   name        String
   price       Float
   description String?
   image       String?
-  isActive    Boolean     @default(true)
-  items       ComboItem[]
-  orderDetails OrderDetail[]
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@map("combos")
 }
-model ComboItem {
-  id       String @id @default(cuid())
-  comboId  String
-  itemId   String
-  quantity Int    @default(1)
-  combo    Combo  @relation(fields: [comboId], references: [id])
-  item     Item   @relation(fields: [itemId], references: [id])
 
-  @@map("comboitems")
-}
 model Order {
-  id          String      @id @default(cuid())
-  orderNumber Int         @unique @default(autoincrement())
-  tableId     String
-  userId      String?
-  customerId  String?
-  status      OrderStatus @default(PENDING)
-  totalAmount Float       @default(0)
-  discount    Float       @default(0)
-  finalAmount Float       @default(0)
-  promoCode   String?
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
-  table       Table       @relation(fields: [tableId], references: [id])
-  user        User?       @relation(fields: [userId], references: [id])
-  customer    Customer?   @relation(fields: [customerId], references: [id])
-  details     OrderDetail[]
-  invoice     Invoice?
-  payments    Payment[]
+  id            String        @id @default(cuid())
+  orderNumber   Int           @unique @default(autoincrement())
+  tableId       String
+  userId        String?
+  customerId    String?
+  status        OrderStatus   @default(PENDING) @map("orderStatus")
+  totalAmount   Float         @default(0) @map("subTotal")
+  taxAmount     Float         @default(0)
+  serviceCharge Float         @default(0)
+  discount      Float         @default(0) @map("discountAmount")
+  finalAmount   Float         @default(0) @map("totalAmount")
+  promoCode     String?
+  customerNotes String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  table         Table         @relation(fields: [tableId], references: [id])
+  user          User?         @relation(fields: [userId], references: [id])
+  customer      Customer?     @relation(fields: [customerId], references: [id])
+  invoice       Invoice?
+  payments      Payment[]
 
   @@map("orders")
 }
-model OrderDetail {
-  id       String          @id @default(cuid())
-  orderId  String
-  itemId   String?
-  comboId  String?
-  quantity Int
-  price    Float
-  status   OrderDetailStatus @default(WAITING)
-  order    Order           @relation(fields: [orderId], references: [id])
-  item     Item?           @relation(fields: [itemId], references: [id])
-  combo    Combo?          @relation(fields: [comboId], references: [id])
 
-  @@map("orderdetails")
-}
 model Promotion {
   id            String       @id @default(cuid())
   name          String
   code          String       @unique
-  discountType  DiscountType
-  discountValue Float
-  minOrder      Float        @default(0)
+  discountType  DiscountType @map("type")
+  discountValue Float        @map("value")
+  minOrder      Float        @default(0) @map("minOrderAmount")
   maxDiscount   Float?
   usageLimit    Int?
-  usageCount    Int          @default(0)
+  usageCount    Int          @default(0) @map("usedCount")
   startDate     DateTime
   endDate       DateTime
   isActive      Boolean      @default(true)
   description   String?
-  customerPromotions CustomerPromotion[]
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
 
   @@map("promotions")
 }
 
-model CustomerPromotion {
-  id          String    @id @default(cuid())
-  customerId  String
-  promotionId String
-  isUsed      Boolean   @default(false)
-  usedAt      DateTime?
-  assignedAt  DateTime  @default(now())
-  customer    Customer  @relation(fields: [customerId], references: [id])
-  promotion   Promotion @relation(fields: [promotionId], references: [id])
-
-  @@unique([customerId, promotionId], name: "customerpromotions_customer_promotion_unique")
-  @@map("customerpromotions")
-}
-
 model Invoice {
-  id          String        @id @default(cuid())
-  invoiceCode String       @unique
-  orderId     String       @unique
-  customerId  String?
-  tableId     String
-  subtotal    Float        @default(0)
-  discount    Float        @default(0)
-  total       Float        @default(0)
-  status      InvoiceStatus @default(UNPAID)
-  issuedAt    DateTime     @default(now())
-  paidAt      DateTime?
-  note        String?
-  order       Order        @relation(fields: [orderId], references: [id])
-  customer    Customer?    @relation(fields: [customerId], references: [id])
-  table       Table        @relation(fields: [tableId], references: [id])
-  payments    Payment[]
+  id              String         @id @default(cuid())
+  invoiceCode     String         @unique @map("invoiceNumber")
+  orderId         String         @unique
+  customerId      String?
+  tableId         String
+  subtotal        Float          @default(0) @map("subTotal")
+  customerName    String?
+  customerTaxCode String?
+  taxAmount       Float          @default(0)
+  discount        Float          @default(0)
+  total           Float          @default(0) @map("totalAmount")
+  paymentMethod   PaymentMethod?
+  status          InvoiceStatus  @default(UNPAID)
+  issuedAt        DateTime       @default(now()) @map("createdAt")
+  updatedAt       DateTime       @updatedAt
+  paidAt          DateTime?
+  note            String?
+  order           Order          @relation(fields: [orderId], references: [id])
+  customer        Customer?      @relation(fields: [customerId], references: [id])
+  table           Table          @relation(fields: [tableId], references: [id])
+  payments        Payment[]
 
   @@map("invoices")
 }
@@ -240,12 +241,15 @@ model Payment {
   id              String        @id @default(cuid())
   invoiceId       String
   orderId         String
-  method          PaymentMethod @default(CASH)
+  method          PaymentMethod @default(CASH) @map("paymentMethod")
   amount          Float
-  status          PaymentStatus @default(PENDING)
+  paidAmount      Float         @default(0)
+  changeAmount    Float         @default(0)
+  status          PaymentStatus @default(PENDING) @map("paymentStatus")
   paidAt          DateTime?
   transactionCode String?
   createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
   invoice         Invoice       @relation(fields: [invoiceId], references: [id])
   order           Order         @relation(fields: [orderId], references: [id])
 

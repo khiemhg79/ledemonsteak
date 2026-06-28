@@ -17,6 +17,7 @@ export async function POST(req: NextRequest) {
   const ok = await bcrypt.compare(password, user.password)
   if (!ok)
     return NextResponse.json({ error: "Sai mật khẩu" }, { status: 401, headers: corsHeaders() })
+  await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } })
   const token = signToken({ id: user.id, role: user.role, name: user.name })
   return NextResponse.json({ token, user: { id: user.id, name: user.name, role: user.role } }, { headers: corsHeaders() })
 }

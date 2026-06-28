@@ -3,7 +3,9 @@ import { prisma } from "@/lib/prisma"
 import { corsHeaders, optionsResponse } from "@/lib/cors"
 import { authorize } from "@/lib/apiAuth"
 import { calculatePromotion, PromotionError } from "@/lib/promotion"
+import { attachOrderItems, packOrderLines, StoredOrderLine } from "@/lib/orderLines"
 import { qrTokenError, verifyTableQrToken } from "@/lib/qrToken"
+import { randomUUID } from "crypto"
 
 export async function OPTIONS() { return optionsResponse() }
 
@@ -44,21 +46,27 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Bàn đang yêu cầu thanh toán, không thể tạo thêm đơn." }, { status: 409, headers: corsHeaders() })
     }
 
-    const itemPrices = new Map(menuItems.map((item) => [item.id, item.price]))
-    const comboPrices = new Map(combos.map((combo) => [combo.id, combo.price]))
-    const details = normalizedItems.map((item: any) => ({
-      itemId: item.itemId,
-      comboId: item.comboId,
-      quantity: item.quantity,
-      price: item.itemId ? itemPrices.get(item.itemId) : comboPrices.get(item.comboId),
-      status: "WAITING" as const,
-    }))
-    if (details.some((detail) => detail.price === undefined)) {
+    const itemMap = new Map(menuItems.map((item) => [item.id, item]))
+    const comboMap = new Map(combos.map((combo) => [combo.id, combo]))
+    const details: StoredOrderLine[] = normalizedItems.map((item: any) => {
+      const menuItem = item.itemId ? itemMap.get(item.itemId) : null
+      const combo = item.comboId ? comboMap.get(item.comboId) : null
+      return {
+        id: randomUUID(),
+        itemId: item.itemId,
+        comboId: item.comboId,
+        quantity: item.quantity,
+        price: item.itemId ? Number(menuItem?.price) : Number(combo?.price),
+        status: "WAITING",
+        item: menuItem ? { id: menuItem.id, name: menuItem.name } : null,
+        combo: combo ? { id: combo.id, name: combo.name } : null,
+      }
+    })
+    if (details.some((detail) => !Number.isFinite(detail.price))) {
       return NextResponse.json({ error: "Có món không tồn tại hoặc đã ngừng bán." }, { status: 400, headers: corsHeaders() })
     }
 
-    const pricedDetails = details.map((detail) => ({ ...detail, price: Number(detail.price) }))
-    const totalAmount = pricedDetails.reduce((sum, detail) => sum + detail.price * detail.quantity, 0)
+    const totalAmount = details.reduce((sum, detail) => sum + detail.price * detail.quantity, 0)
     let discount = 0
     let finalAmount = totalAmount
     let appliedPromoCode: string | null = null
@@ -81,14 +89,13 @@ export async function POST(req: NextRequest) {
           discount,
           finalAmount,
           promoCode: appliedPromoCode,
-          details: { create: pricedDetails },
+          customerNotes: packOrderLines(details),
         },
-        include: { details: true },
       })
       await tx.table.update({ where: { id: tableId }, data: { status: "OCCUPIED" } })
       return created
     })
-    return NextResponse.json({ ...order, items: order.details }, { status: 201, headers: corsHeaders() })
+    return NextResponse.json(attachOrderItems(order), { status: 201, headers: corsHeaders() })
   } catch (error) {
     if (error instanceof PromotionError) return NextResponse.json({ error: error.message }, { status: 400, headers: corsHeaders() })
     console.error("Create order failed", error)
@@ -113,15 +120,9 @@ export async function GET(req: NextRequest) {
   const orders = await prisma.order.findMany({
     where,
     include: {
-      details: {
-        include: {
-          item: { select: { id: true, name: true } },
-          combo: { select: { id: true, name: true } },
-        },
-      },
       table: { select: { id: true, number: true, status: true } },
     },
     orderBy: { createdAt: staffView ? "asc" : "desc" },
   })
-  return NextResponse.json(orders.map((order) => ({ ...order, items: order.details })), { headers: corsHeaders() })
+  return NextResponse.json(orders.map(attachOrderItems), { headers: corsHeaders() })
 }

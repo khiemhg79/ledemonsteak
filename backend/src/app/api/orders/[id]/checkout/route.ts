@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma"
 import { corsHeaders, optionsResponse } from "@/lib/cors"
 import { authorize } from "@/lib/apiAuth"
 import { calculatePromotion, PromotionError } from "@/lib/promotion"
+import { attachOrderItems } from "@/lib/orderLines"
 
 export async function OPTIONS() { return optionsResponse() }
 
@@ -36,7 +37,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       })
       const paidInvoice = await tx.invoice.update({
         where: { id: invoice.id },
-        data: { status: "PAID", paidAt },
+        data: { status: "PAID", paidAt, paymentMethod: selectedMethod },
       })
       const payment = await tx.payment.create({
         data: {
@@ -44,6 +45,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           orderId: order.id,
           method: selectedMethod,
           amount: paidAmount,
+          paidAmount,
+          changeAmount: paidAmount - order.finalAmount,
           status: "SUCCESS",
           paidAt,
         },
@@ -53,12 +56,12 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       if (order.promoCode) await tx.promotion.update({ where: { code: order.promoCode }, data: { usageCount: { increment: 1 } } })
       const completedOrder = await tx.order.findUnique({
         where: { id: params.id },
-        include: { table: true, customer: { include: { user: true } }, details: { include: { item: true, combo: true } } },
+        include: { table: true, customer: { include: { user: true } } },
       })
       return {
         invoice: paidInvoice,
         payment,
-        order: completedOrder ? { ...completedOrder, items: completedOrder.details } : null,
+        order: completedOrder ? attachOrderItems(completedOrder) : null,
       }
     })
     return NextResponse.json({
