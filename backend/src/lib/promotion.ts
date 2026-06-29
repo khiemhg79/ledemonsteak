@@ -20,11 +20,10 @@ export async function calculatePromotion(code: string, orderAmount: number, cust
   if (promo.usageLimit != null && promo.usageCount >= promo.usageLimit) throw new PromotionError("Ma giam gia da het luot su dung.")
   if (orderAmount < promo.minOrder) throw new PromotionError(`Don toi thieu ${promo.minOrder.toLocaleString("vi-VN")}d.`)
   if (customerId) {
-    const customerPromo = await prisma.customerPromotion.upsert({
-      where: { customerId_promotionId: { customerId, promotionId: promo.id } },
-      update: {},
-      create: { customerId, promotionId: promo.id },
-    })
+    let customerPromo = await prisma.customerPromotion.findFirst({ where: { customerId, promotionId: promo.id } })
+    if (!customerPromo) {
+      customerPromo = await prisma.customerPromotion.create({ data: { customerId, promotionId: promo.id } })
+    }
     if (customerPromo.isUsed) throw new PromotionError("Ma giam gia da duoc su dung.")
   }
 

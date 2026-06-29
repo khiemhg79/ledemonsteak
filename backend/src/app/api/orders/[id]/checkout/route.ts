@@ -27,23 +27,27 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       }
 
       const paidAt = new Date()
-      const invoice = await prisma.invoice.upsert({
-        where: { orderId: order.id },
-        update: {
-          customerId: order.customerId,
-          tableId: order.tableId,
-          subtotal: order.totalAmount,
-          total: order.finalAmount,
-        },
-        create: {
-          invoiceCode: `INV-${order.id.slice(-8).toUpperCase()}`,
-          orderId: order.id,
-          customerId: order.customerId,
-          tableId: order.tableId,
-          subtotal: order.totalAmount,
-          total: order.finalAmount,
-        },
-      })
+      const existingInvoice = await prisma.invoice.findFirst({ where: { orderId: order.id } })
+      const invoice = existingInvoice
+        ? await prisma.invoice.update({
+          where: { id: existingInvoice.id },
+          data: {
+            customerId: order.customerId,
+            tableId: order.tableId,
+            subtotal: order.totalAmount,
+            total: order.finalAmount,
+          },
+        })
+        : await prisma.invoice.create({
+          data: {
+            invoiceCode: `INV-${order.id.slice(-8).toUpperCase()}`,
+            orderId: order.id,
+            customerId: order.customerId,
+            tableId: order.tableId,
+            subtotal: order.totalAmount,
+            total: order.finalAmount,
+          },
+        })
       const paidInvoice = await prisma.invoice.update({
         where: { id: invoice.id },
         data: { status: "PAID", paidAt, paymentMethod: selectedMethod },
@@ -65,11 +69,19 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       if (order.promoCode) {
         await prisma.promotion.update({ where: { id: order.promoCode }, data: { usageCount: { increment: 1 } } })
         if (order.customerId) {
-          await prisma.customerPromotion.upsert({
-            where: { customerId_promotionId: { customerId: order.customerId, promotionId: order.promoCode } },
-            update: { isUsed: true, usedAt: paidAt },
-            create: { customerId: order.customerId, promotionId: order.promoCode, isUsed: true, usedAt: paidAt },
+          const customerPromo = await prisma.customerPromotion.findFirst({
+            where: { customerId: order.customerId, promotionId: order.promoCode },
           })
+          if (customerPromo) {
+            await prisma.customerPromotion.update({
+              where: { id: customerPromo.id },
+              data: { isUsed: true, usedAt: paidAt },
+            })
+          } else {
+            await prisma.customerPromotion.create({
+              data: { customerId: order.customerId, promotionId: order.promoCode, isUsed: true, usedAt: paidAt },
+            })
+          }
         }
       }
       const completedOrder = await prisma.order.findUnique({
@@ -119,25 +131,31 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       data: { discount, finalAmount, promoCode: appliedPromoCode },
     })
 
-    await prisma.invoice.upsert({
-      where: { orderId: order.id },
-      update: {
-        customerId: order.customerId,
-        tableId: order.tableId,
-        subtotal: updated.totalAmount,
-        total: updated.finalAmount,
-        status: "UNPAID",
-      },
-      create: {
-        invoiceCode: `INV-${order.id.slice(-8).toUpperCase()}`,
-        orderId: order.id,
-        customerId: order.customerId,
-        tableId: order.tableId,
-        subtotal: updated.totalAmount,
-        total: updated.finalAmount,
-        status: "UNPAID",
-      },
-    })
+    const unpaidInvoice = await prisma.invoice.findFirst({ where: { orderId: order.id } })
+    if (unpaidInvoice) {
+      await prisma.invoice.update({
+        where: { id: unpaidInvoice.id },
+        data: {
+          customerId: order.customerId,
+          tableId: order.tableId,
+          subtotal: updated.totalAmount,
+          total: updated.finalAmount,
+          status: "UNPAID",
+        },
+      })
+    } else {
+      await prisma.invoice.create({
+        data: {
+          invoiceCode: `INV-${order.id.slice(-8).toUpperCase()}`,
+          orderId: order.id,
+          customerId: order.customerId,
+          tableId: order.tableId,
+          subtotal: updated.totalAmount,
+          total: updated.finalAmount,
+          status: "UNPAID",
+        },
+      })
+    }
 
     return NextResponse.json(updated, { headers: corsHeaders() })
   } catch (error) {
