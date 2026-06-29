@@ -19,12 +19,14 @@ function authToken(token?: string) {
 }
 
 const REQUEST_TIMEOUT_MS = 10_000
+type RequestOptions = RequestInit & { timeoutMs?: number }
 
-async function request(input: RequestInfo | URL, init?: RequestInit) {
+async function request(input: RequestInfo | URL, init?: RequestOptions) {
   const controller = new AbortController()
-  const timeout = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+  const { timeoutMs, ...requestInit } = init ?? {}
+  const timeout = window.setTimeout(() => controller.abort(), timeoutMs ?? REQUEST_TIMEOUT_MS)
   try {
-    return await fetch(input, { ...init, signal: controller.signal })
+    return await fetch(input, { ...requestInit, signal: controller.signal })
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") {
       throw new Error("Hệ thống phản hồi quá lâu. Vui lòng thử lại.")
@@ -81,9 +83,9 @@ export async function apiGet(path: string, token?: string, options?: { force?: b
   return promise
 }
 
-export async function apiPost(path: string, body: any, token?: string) {
+export async function apiPost(path: string, body: any, token?: string, options?: { timeoutMs?: number }) {
   const currentToken = authToken(token)
-  const res = await request(`${apiBase()}${path}`, { method: "POST", headers: { "Content-Type": "application/json", ...(currentToken ? { Authorization: `Bearer ${currentToken}` } : {}) }, body: JSON.stringify(body) })
+  const res = await request(`${apiBase()}${path}`, { method: "POST", headers: { "Content-Type": "application/json", ...(currentToken ? { Authorization: `Bearer ${currentToken}` } : {}) }, body: JSON.stringify(body), timeoutMs: options?.timeoutMs })
   handleUnauthorized(res, path)
   if (!res.ok) throw new Error(await readError(res))
   clearCache()

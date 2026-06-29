@@ -32,7 +32,7 @@ export default function PaymentModal({ order, onClose, onComplete }: { order: an
     if (receivedNumber < order.finalAmount) { setError(`Số tiền nhận phải lớn hơn hoặc bằng tổng tiền hóa đơn ${money(order.finalAmount)}.`); return }
     setBusy(true); setError("")
     try {
-      const result = await apiPost(`/api/orders/${order.id}/checkout`, { complete: true, paymentMethod: method, receivedAmount: Number(received) })
+      const result = await apiPost(`/api/orders/${order.id}/checkout`, { complete: true, paymentMethod: method, receivedAmount: Number(received) }, undefined, { timeoutMs: 30_000 })
       setReceipt(result)
     } catch (err) { setError(err instanceof Error ? err.message : "Không xác nhận được thanh toán.") } finally { setBusy(false) }
   }
