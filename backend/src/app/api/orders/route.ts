@@ -91,6 +91,23 @@ export async function POST(req: NextRequest) {
           finalAmount,
           promoCode: appliedPromoCode,
           customerNotes: packOrderLines(orderLines),
+          orderDetails: {
+            create: orderLines.map((line) => ({
+              itemId: line.itemId,
+              comboId: line.comboId,
+              quantity: line.quantity,
+              price: line.price,
+              status: line.status,
+            })),
+          },
+        },
+        include: {
+          orderDetails: {
+            include: {
+              item: { select: { id: true, name: true } },
+              combo: { select: { id: true, name: true } },
+            },
+          },
         },
       })
       await tx.table.update({ where: { id: tableId }, data: { status: "OCCUPIED" } })
@@ -125,6 +142,12 @@ export async function GET(req: NextRequest) {
       where,
       include: {
         table: { select: { id: true, number: true, status: true } },
+        orderDetails: {
+          include: {
+            item: { select: { id: true, name: true } },
+            combo: { select: { id: true, name: true } },
+          },
+        },
       },
       orderBy: { createdAt: staffView ? "asc" : "desc" },
     })

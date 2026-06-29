@@ -17,7 +17,16 @@ export async function GET(req: NextRequest) {
         table: true,
         customer: { include: { user: true } },
         payments: { where: { status: "SUCCESS" }, orderBy: { paidAt: "desc" }, take: 1 },
-        order: true,
+        order: {
+          include: {
+            orderDetails: {
+              include: {
+                item: { select: { id: true, name: true } },
+                combo: { select: { id: true, name: true } },
+              },
+            },
+          },
+        },
       },
     })
     return NextResponse.json(invoices.map((invoice) => ({

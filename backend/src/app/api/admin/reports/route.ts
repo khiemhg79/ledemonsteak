@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { authorize } from "@/lib/apiAuth"
 import { corsHeaders, optionsResponse } from "@/lib/cors"
 import { prisma } from "@/lib/prisma"
-import { parseOrderLines } from "@/lib/orderLines"
+import { attachOrderItems } from "@/lib/orderLines"
 
 function adminOnly(req: NextRequest) {
   const auth = authorize(req, ["ADMIN"])
@@ -31,7 +31,18 @@ export async function GET(req: NextRequest) {
     const completedOrders = await prisma.order.findMany({
       where: { status: "COMPLETED" },
       orderBy: { createdAt: "asc" },
-      select: { id: true, finalAmount: true, createdAt: true, customerNotes: true },
+      select: {
+        id: true,
+        finalAmount: true,
+        createdAt: true,
+        customerNotes: true,
+        orderDetails: {
+          include: {
+            item: { select: { id: true, name: true } },
+            combo: { select: { id: true, name: true } },
+          },
+        },
+      },
     })
 
     const monthlyMap = new Map<string, { month: string; label: string; revenue: number; orders: number }>()
@@ -47,7 +58,7 @@ export async function GET(req: NextRequest) {
     let comboItems = 0
     let dishItems = 0
     for (const order of completedOrders) {
-      for (const detail of parseOrderLines(order.customerNotes)) {
+      for (const detail of attachOrderItems(order).items) {
         if (detail.comboId) comboItems += detail.quantity
         else dishItems += detail.quantity
 

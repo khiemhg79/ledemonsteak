@@ -71,12 +71,28 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if (activeItems !== parsed.items.length) return NextResponse.json({ error: "Danh sách món trong combo không hợp lệ." }, { status: 400, headers: corsHeaders() })
   }
 
-  const combo = await prisma.combo.update({
-    where: { id: params.id },
-    data: parsed.data,
+  const combo = await prisma.$transaction(async (tx) => {
+    await tx.comboItem.deleteMany({ where: { comboId: params.id } })
+    return tx.combo.update({
+      where: { id: params.id },
+      data: {
+        ...parsed.data,
+        items: {
+          create: parsed.items.map((item) => ({
+            itemId: item.itemId,
+            quantity: item.quantity,
+          })),
+        },
+      },
+      include: {
+        items: {
+          include: { item: true },
+        },
+      },
+    })
   })
 
-  return NextResponse.json({ ...combo, items: parsed.items }, { headers: corsHeaders() })
+  return NextResponse.json(combo, { headers: corsHeaders() })
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {

@@ -59,7 +59,16 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         if (order.promoCode) await tx.promotion.update({ where: { id: order.promoCode }, data: { usageCount: { increment: 1 } } })
         const completedOrder = await tx.order.findUnique({
           where: { id: params.id },
-          include: { table: true, customer: { include: { user: true } } },
+          include: {
+            table: true,
+            customer: { include: { user: true } },
+            orderDetails: {
+              include: {
+                item: { select: { id: true, name: true } },
+                combo: { select: { id: true, name: true } },
+              },
+            },
+          },
         })
         return {
           invoice: paidInvoice,

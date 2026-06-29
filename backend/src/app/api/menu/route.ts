@@ -64,11 +64,21 @@ export async function GET(req: NextRequest) {
   const admin = isAdminRequest(req)
   const [dishes, combos, categories] = await Promise.all([
     prisma.item.findMany({ where: admin ? {} : { isActive: true }, include: { category: true }, orderBy: [{ category: { sortOrder: "asc" } }, { name: "asc" }] }),
-    prisma.combo.findMany({ where: admin ? {} : { isActive: true }, orderBy: { name: "asc" } }),
+    prisma.combo.findMany({
+      where: admin ? {} : { isActive: true },
+      include: {
+        items: {
+          include: {
+            item: true,
+          },
+        },
+      },
+      orderBy: { name: "asc" },
+    }),
     prisma.category.findMany({ where: admin ? {} : { isActive: true }, orderBy: { sortOrder: "asc" } }),
   ])
   return NextResponse.json(
-    { dishes, combos: combos.map((combo) => ({ ...combo, items: [] })), categories },
+    { dishes, combos, categories },
     {
       headers: {
         ...corsHeaders(),

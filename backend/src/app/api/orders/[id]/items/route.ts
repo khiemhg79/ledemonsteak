@@ -11,9 +11,20 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status, headers: corsHeaders() })
 
   const { itemId, status } = await req.json()
-  const order = await prisma.order.findUnique({ where: { id: params.id } })
-  const items = parseOrderLines(order?.customerNotes)
-  const current = items.find((item) => item.id === itemId)
+  const order = await prisma.order.findUnique({
+    where: { id: params.id },
+    include: {
+      orderDetails: {
+        include: {
+          item: { select: { id: true, name: true } },
+          combo: { select: { id: true, name: true } },
+        },
+      },
+    },
+  })
+  const currentDetail = order?.orderDetails.find((item) => item.id === itemId)
+  const legacyItems = currentDetail ? [] : parseOrderLines(order?.customerNotes)
+  const current = currentDetail ?? legacyItems.find((item) => item.id === itemId)
   if (!order || !current) {
     return NextResponse.json({ error: "Mon an khong thuoc don hang nay." }, { status: 404, headers: corsHeaders() })
   }
@@ -23,7 +34,19 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     return NextResponse.json({ error: "Trang thai mon phai cap nhat lan luot: Bat dau -> Xong mon -> Da phuc vu." }, { status: 409, headers: corsHeaders() })
   }
 
+  if (currentDetail) {
+    const updated = await prisma.orderDetail.update({
+      where: { id: currentDetail.id },
+      data: { status },
+      include: {
+        item: { select: { id: true, name: true } },
+        combo: { select: { id: true, name: true } },
+      },
+    })
+    return NextResponse.json(updated, { headers: corsHeaders() })
+  }
+
   current.status = status
-  await prisma.order.update({ where: { id: params.id }, data: { customerNotes: packOrderLines(items) } })
+  await prisma.order.update({ where: { id: params.id }, data: { customerNotes: packOrderLines(legacyItems) } })
   return NextResponse.json(current, { headers: corsHeaders() })
 }
