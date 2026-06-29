@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
       const auth = authorize(req, ["CUSTOMER"])
       if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status, headers: corsHeaders() })
       if (userId && auth.user.id !== userId) return NextResponse.json({ error: "Tai khoan khong khop voi nguoi dat mon." }, { status: 403, headers: corsHeaders() })
-      const calculation = await calculatePromotion(promoCode, totalAmount)
+      const calculation = await calculatePromotion(promoCode, totalAmount, customer?.id)
       discount = calculation.discount
       finalAmount = calculation.finalAmount
       appliedPromoCode = calculation.promo.id

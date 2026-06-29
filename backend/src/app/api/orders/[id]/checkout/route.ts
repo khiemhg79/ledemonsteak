@@ -56,7 +56,16 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         })
         await tx.table.update({ where: { id: order.tableId! }, data: { status: "EMPTY" } })
         await tx.order.update({ where: { id: params.id }, data: { status: "COMPLETED" } })
-        if (order.promoCode) await tx.promotion.update({ where: { id: order.promoCode }, data: { usageCount: { increment: 1 } } })
+        if (order.promoCode) {
+          await tx.promotion.update({ where: { id: order.promoCode }, data: { usageCount: { increment: 1 } } })
+          if (order.customerId) {
+            await tx.customerPromotion.upsert({
+              where: { customerId_promotionId: { customerId: order.customerId, promotionId: order.promoCode } },
+              update: { isUsed: true, usedAt: paidAt },
+              create: { customerId: order.customerId, promotionId: order.promoCode, isUsed: true, usedAt: paidAt },
+            })
+          }
+        }
         const completedOrder = await tx.order.findUnique({
           where: { id: params.id },
           include: {
@@ -92,7 +101,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       const auth = authorize(req, ["CUSTOMER"])
       if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status, headers: corsHeaders() })
       try {
-        const calculation = await calculatePromotion(requestedPromoCode, order.totalAmount)
+        const calculation = await calculatePromotion(requestedPromoCode, order.totalAmount, order.customerId)
         discount = calculation.discount
         finalAmount = calculation.finalAmount
         appliedPromoCode = calculation.promo.id

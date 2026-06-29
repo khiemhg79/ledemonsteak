@@ -76,12 +76,12 @@ async function main() {
   }
 
   const pw = await bcrypt.hash("Admin@123", 10)
-  await prisma.user.upsert({ where: { phone: "0900000001" }, update: {}, create: { name: "Admin", phone: "0900000001", password: pw, role: "ADMIN" } })
-  await prisma.user.upsert({ where: { phone: "0900000002" }, update: {}, create: { name: "Nhan Vien", phone: "0900000002", password: pw, role: "STAFF" } })
+  await prisma.user.upsert({ where: { phone: "0900000001" }, update: { roleId: "ADMIN" }, create: { name: "Admin", phone: "0900000001", password: pw, role: "ADMIN", roleId: "ADMIN" } })
+  await prisma.user.upsert({ where: { phone: "0900000002" }, update: { roleId: "STAFF" }, create: { name: "Nhan Vien", phone: "0900000002", password: pw, role: "STAFF", roleId: "STAFF" } })
   await prisma.user.upsert({
     where: { phone: "0900000003" },
-    update: {},
-    create: { name: "Khach Demo", phone: "0900000003", password: pw, role: "CUSTOMER", customer: { create: { name: "Khach Demo", phone: "0900000003" } } },
+    update: { roleId: "CUSTOMER" },
+    create: { name: "Khach Demo", phone: "0900000003", password: pw, role: "CUSTOMER", roleId: "CUSTOMER", customer: { create: { name: "Khach Demo", phone: "0900000003" } } },
   })
 
   await prisma.promotion.upsert({

@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma"
 import { authorize } from "@/lib/apiAuth"
 import { corsHeaders, optionsResponse } from "@/lib/cors"
 import { isVietnamesePhone, normalizePhone } from "@/lib/authValidation"
+import { roleIdFor } from "@/lib/roles"
 
 const roles = [Role.ADMIN, Role.STAFF, Role.CUSTOMER] as const
 
@@ -66,7 +67,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const duplicate = await prisma.user.findFirst({ where: { phone, NOT: { id: params.id } }, select: { id: true } })
   if (duplicate) return NextResponse.json({ error: "Số điện thoại đã tồn tại trên hệ thống." }, { status: 409, headers: corsHeaders() })
 
-  const data: { name: string; phone: string; role: Role; isActive: boolean; password?: string } = { name, phone, role, isActive }
+  const data: { name: string; phone: string; role: Role; roleId: string; isActive: boolean; password?: string } = { name, phone, role, roleId: roleIdFor(role), isActive }
   if (password) data.password = await bcrypt.hash(password, 10)
 
   const user = await prisma.user.update({

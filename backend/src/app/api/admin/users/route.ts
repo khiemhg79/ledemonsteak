@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma"
 import { authorize } from "@/lib/apiAuth"
 import { corsHeaders, optionsResponse } from "@/lib/cors"
 import { isVietnamesePhone, normalizePhone } from "@/lib/authValidation"
+import { roleIdFor } from "@/lib/roles"
 
 const roles = [Role.ADMIN, Role.STAFF, Role.CUSTOMER] as const
 
@@ -82,6 +83,7 @@ export async function POST(req: NextRequest) {
       phone,
       password: hashed,
       role,
+      roleId: roleIdFor(role),
       isActive: true,
       ...(role === "CUSTOMER" ? { customer: { create: { name, phone, isActive: true } } } : {}),
     },

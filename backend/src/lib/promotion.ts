@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma"
 
 export class PromotionError extends Error {}
 
-export async function calculatePromotion(code: string, orderAmount: number) {
+export async function calculatePromotion(code: string, orderAmount: number, customerId?: string | null) {
   const rawCode = String(code ?? "").trim()
   const promo = await prisma.promotion.findFirst({
     where: {
@@ -19,6 +19,14 @@ export async function calculatePromotion(code: string, orderAmount: number) {
   if (promo.endDate < now) throw new PromotionError("Ma giam gia da het han.")
   if (promo.usageLimit != null && promo.usageCount >= promo.usageLimit) throw new PromotionError("Ma giam gia da het luot su dung.")
   if (orderAmount < promo.minOrder) throw new PromotionError(`Don toi thieu ${promo.minOrder.toLocaleString("vi-VN")}d.`)
+  if (customerId) {
+    const customerPromo = await prisma.customerPromotion.upsert({
+      where: { customerId_promotionId: { customerId, promotionId: promo.id } },
+      update: {},
+      create: { customerId, promotionId: promo.id },
+    })
+    if (customerPromo.isUsed) throw new PromotionError("Ma giam gia da duoc su dung.")
+  }
 
   let discount = promo.discountType === "PERCENTAGE"
     ? orderAmount * promo.discountValue / 100

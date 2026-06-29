@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma"
 import { signToken } from "@/lib/jwt"
 import { corsHeaders, optionsResponse } from "@/lib/cors"
 import { isVietnamesePhone, normalizePhone } from "@/lib/authValidation"
+import { roleIdFor } from "@/lib/roles"
 
 export async function OPTIONS() {
   return optionsResponse()
@@ -38,6 +39,7 @@ export async function POST(req: NextRequest) {
         phone,
         password: hashed,
         role: "CUSTOMER",
+        roleId: roleIdFor("CUSTOMER"),
         customer: { create: { name, phone, isActive: true } },
       },
     })
