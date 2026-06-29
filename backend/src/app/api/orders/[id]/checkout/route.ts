@@ -27,67 +27,69 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       }
 
       const paidAt = new Date()
-      const result = await prisma.$transaction(async (tx) => {
-        const invoice = order.invoice ?? await tx.invoice.create({
-          data: {
-            invoiceCode: `INV-${order.id.slice(-8).toUpperCase()}`,
-            orderId: order.id,
-            customerId: order.customerId,
-            tableId: order.tableId,
-            subtotal: order.totalAmount,
-            total: order.finalAmount,
-          },
-        })
-        const paidInvoice = await tx.invoice.update({
-          where: { id: invoice.id },
-          data: { status: "PAID", paidAt, paymentMethod: selectedMethod },
-        })
-        const payment = await tx.payment.create({
-          data: {
-            invoiceId: invoice.id,
-            orderId: order.id,
-            method: selectedMethod,
-            amount: paidAmount,
-            paidAmount,
-            changeAmount: paidAmount - order.finalAmount,
-            status: "SUCCESS",
-            paidAt,
-          },
-        })
-        await tx.table.update({ where: { id: order.tableId! }, data: { status: "EMPTY" } })
-        await tx.order.update({ where: { id: params.id }, data: { status: "COMPLETED" } })
-        if (order.promoCode) {
-          await tx.promotion.update({ where: { id: order.promoCode }, data: { usageCount: { increment: 1 } } })
-          if (order.customerId) {
-            await tx.customerPromotion.upsert({
-              where: { customerId_promotionId: { customerId: order.customerId, promotionId: order.promoCode } },
-              update: { isUsed: true, usedAt: paidAt },
-              create: { customerId: order.customerId, promotionId: order.promoCode, isUsed: true, usedAt: paidAt },
-            })
-          }
+      const invoice = await prisma.invoice.upsert({
+        where: { orderId: order.id },
+        update: {
+          customerId: order.customerId,
+          tableId: order.tableId,
+          subtotal: order.totalAmount,
+          total: order.finalAmount,
+        },
+        create: {
+          invoiceCode: `INV-${order.id.slice(-8).toUpperCase()}`,
+          orderId: order.id,
+          customerId: order.customerId,
+          tableId: order.tableId,
+          subtotal: order.totalAmount,
+          total: order.finalAmount,
+        },
+      })
+      const paidInvoice = await prisma.invoice.update({
+        where: { id: invoice.id },
+        data: { status: "PAID", paidAt, paymentMethod: selectedMethod },
+      })
+      const payment = await prisma.payment.create({
+        data: {
+          invoiceId: invoice.id,
+          orderId: order.id,
+          method: selectedMethod,
+          amount: paidAmount,
+          paidAmount,
+          changeAmount: paidAmount - order.finalAmount,
+          status: "SUCCESS",
+          paidAt,
+        },
+      })
+      await prisma.table.update({ where: { id: order.tableId }, data: { status: "EMPTY" } })
+      await prisma.order.update({ where: { id: params.id }, data: { status: "COMPLETED" } })
+      if (order.promoCode) {
+        await prisma.promotion.update({ where: { id: order.promoCode }, data: { usageCount: { increment: 1 } } })
+        if (order.customerId) {
+          await prisma.customerPromotion.upsert({
+            where: { customerId_promotionId: { customerId: order.customerId, promotionId: order.promoCode } },
+            update: { isUsed: true, usedAt: paidAt },
+            create: { customerId: order.customerId, promotionId: order.promoCode, isUsed: true, usedAt: paidAt },
+          })
         }
-        const completedOrder = await tx.order.findUnique({
-          where: { id: params.id },
-          include: {
-            table: true,
-            customer: { include: { user: true } },
-            orderDetails: {
-              include: {
-                item: { select: { id: true, name: true } },
-                combo: { select: { id: true, name: true } },
-              },
+      }
+      const completedOrder = await prisma.order.findUnique({
+        where: { id: params.id },
+        include: {
+          table: true,
+          customer: { include: { user: true } },
+          orderDetails: {
+            include: {
+              item: { select: { id: true, name: true } },
+              combo: { select: { id: true, name: true } },
             },
           },
-        })
-        return {
-          invoice: paidInvoice,
-          payment,
-          order: completedOrder ? attachOrderItems(completedOrder) : null,
-        }
+        },
       })
 
       return NextResponse.json({
-        ...result,
+        invoice: paidInvoice,
+        payment,
+        order: completedOrder ? attachOrderItems(completedOrder) : null,
         receivedAmount: paidAmount,
         changeAmount: paidAmount - order.finalAmount,
       }, { headers: corsHeaders() })
