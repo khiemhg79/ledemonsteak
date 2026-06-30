@@ -7,7 +7,7 @@ const tableScopes: Record<string, string[]> = {
   admin: ["categories", "items", "combos", "comboitems", "orders", "orderdetails", "invoices", "payments", "promotions", "customerpromotions", "tables", "users", "customers", "roles"],
 }
 
-const REALTIME_REFRESH_DEBOUNCE_MS = 700
+const REALTIME_REFRESH_DEBOUNCE_MS = 120
 
 function hasSupabaseEnv() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? ""

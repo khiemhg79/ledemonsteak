@@ -31,7 +31,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
       const paidAt = new Date()
       const { paidInvoice, payment, completedOrder } = await prisma.$transaction(async (tx) => {
-        const existingInvoice = await tx.invoice.findFirst({ where: { orderId: order.id } })
+        const existingInvoice = await tx.invoice.findFirst({ where: { orderId: order.id }, select: { id: true } })
         const invoice = existingInvoice
           ? await tx.invoice.update({
             where: { id: existingInvoice.id },
@@ -53,35 +53,42 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
             },
           })
 
-        const [paidInvoice, payment] = await Promise.all([
-          tx.invoice.update({
-            where: { id: invoice.id },
-            data: { status: "PAID", paidAt, paymentMethod: selectedMethod },
-          }),
-          tx.payment.create({
-            data: {
-              invoiceId: invoice.id,
-              orderId: order.id,
-              method: selectedMethod,
-              amount: paidAmount,
-              paidAmount,
-              changeAmount: paidAmount - order.finalAmount,
-              status: "SUCCESS",
-              paidAt,
-            },
-          }),
-          tx.table.update({ where: { id: order.tableId! }, data: { status: "EMPTY" } }),
-          tx.order.update({ where: { id: params.id }, data: { status: "COMPLETED" } }),
-        ])
+        const paidInvoice = await tx.invoice.update({
+          where: { id: invoice.id },
+          data: { status: "PAID", paidAt, paymentMethod: selectedMethod },
+        })
+        const payment = await tx.payment.create({
+          data: {
+            invoiceId: invoice.id,
+            orderId: order.id,
+            method: selectedMethod,
+            amount: paidAmount,
+            paidAmount,
+            changeAmount: paidAmount - order.finalAmount,
+            status: "SUCCESS",
+            paidAt,
+          },
+        })
+        await tx.table.update({ where: { id: order.tableId! }, data: { status: "EMPTY" } })
+        await tx.order.update({ where: { id: params.id }, data: { status: "COMPLETED" } })
 
         if (order.promoCode) {
           await tx.promotion.update({ where: { id: order.promoCode }, data: { usageCount: { increment: 1 } } })
           if (order.customerId) {
-            await tx.customerPromotion.upsert({
-              where: { customerId_promotionId: { customerId: order.customerId, promotionId: order.promoCode } },
-              update: { isUsed: true, usedAt: paidAt },
-              create: { customerId: order.customerId, promotionId: order.promoCode, isUsed: true, usedAt: paidAt },
+            const existingCustomerPromotion = await tx.customerPromotion.findFirst({
+              where: { customerId: order.customerId, promotionId: order.promoCode },
+              select: { id: true },
             })
+            if (existingCustomerPromotion) {
+              await tx.customerPromotion.update({
+                where: { id: existingCustomerPromotion.id },
+                data: { isUsed: true, usedAt: paidAt },
+              })
+            } else {
+              await tx.customerPromotion.create({
+                data: { customerId: order.customerId, promotionId: order.promoCode, isUsed: true, usedAt: paidAt },
+              })
+            }
           }
         }
 
@@ -163,25 +170,31 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         data: { discount, finalAmount, promoCode: appliedPromoCode },
       })
 
-      await tx.invoice.upsert({
-        where: { orderId: order.id },
-        update: {
-          customerId: order.customerId,
-          tableId: order.tableId,
-          subtotal: updated.totalAmount,
-          total: updated.finalAmount,
-          status: "UNPAID",
-        },
-        create: {
-          invoiceCode: `INV-${order.id.slice(-8).toUpperCase()}`,
-          orderId: order.id,
-          customerId: order.customerId,
-          tableId: order.tableId,
-          subtotal: updated.totalAmount,
-          total: updated.finalAmount,
-          status: "UNPAID",
-        },
-      })
+      const existingInvoice = await tx.invoice.findFirst({ where: { orderId: order.id }, select: { id: true } })
+      if (existingInvoice) {
+        await tx.invoice.update({
+          where: { id: existingInvoice.id },
+          data: {
+            customerId: order.customerId,
+            tableId: order.tableId,
+            subtotal: updated.totalAmount,
+            total: updated.finalAmount,
+            status: "UNPAID",
+          },
+        })
+      } else {
+        await tx.invoice.create({
+          data: {
+            invoiceCode: `INV-${order.id.slice(-8).toUpperCase()}`,
+            orderId: order.id,
+            customerId: order.customerId,
+            tableId: order.tableId,
+            subtotal: updated.totalAmount,
+            total: updated.finalAmount,
+            status: "UNPAID",
+          },
+        })
+      }
 
       return updated
     })
