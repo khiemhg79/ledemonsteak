@@ -13,7 +13,26 @@ export async function OPTIONS() { return optionsResponse() }
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const { promoCode, complete, paymentMethod, receivedAmount } = await req.json()
-    const order = await prisma.order.findUnique({ where: { id: params.id }, include: { invoice: true } })
+    const order = await prisma.order.findUnique({
+      where: { id: params.id },
+      select: {
+        id: true,
+        orderNumber: true,
+        tableId: true,
+        userId: true,
+        customerId: true,
+        status: true,
+        totalAmount: true,
+        taxAmount: true,
+        serviceCharge: true,
+        discount: true,
+        finalAmount: true,
+        promoCode: true,
+        customerNotes: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    })
     if (!order) return NextResponse.json({ error: "Khong tim thay don." }, { status: 404, headers: corsHeaders() })
     if (!order.tableId) return NextResponse.json({ error: "Don hang chua gan ban, khong the thanh toan." }, { status: 400, headers: corsHeaders() })
 
@@ -41,6 +60,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
               subtotal: order.totalAmount,
               total: order.finalAmount,
             },
+            select: { id: true },
           })
           : await tx.invoice.create({
             data: {
@@ -51,11 +71,24 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
               subtotal: order.totalAmount,
               total: order.finalAmount,
             },
+            select: { id: true },
           })
 
         const paidInvoice = await tx.invoice.update({
           where: { id: invoice.id },
           data: { status: "PAID", paidAt, paymentMethod: selectedMethod },
+          select: {
+            id: true,
+            invoiceCode: true,
+            subtotal: true,
+            taxAmount: true,
+            total: true,
+            paymentMethod: true,
+            status: true,
+            paidAt: true,
+            issuedAt: true,
+            updatedAt: true,
+          },
         })
         const payment = await tx.payment.create({
           data: {
@@ -67,6 +100,19 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
             changeAmount: paidAmount - order.finalAmount,
             status: "SUCCESS",
             paidAt,
+          },
+          select: {
+            id: true,
+            invoiceId: true,
+            orderId: true,
+            method: true,
+            amount: true,
+            paidAmount: true,
+            changeAmount: true,
+            status: true,
+            paidAt: true,
+            createdAt: true,
+            updatedAt: true,
           },
         })
         await tx.table.update({ where: { id: order.tableId! }, data: { status: "EMPTY" } })
@@ -137,7 +183,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       })
 
       return NextResponse.json({
-        invoice: paidInvoice,
+        invoice: { ...paidInvoice, discount: order.discount },
         payment,
         order: completedOrder ? attachOrderItems(completedOrder) : null,
         receivedAmount: paidAmount,
@@ -181,6 +227,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
             total: updated.finalAmount,
             status: "UNPAID",
           },
+          select: { id: true },
         })
       } else {
         await tx.invoice.create({
@@ -193,6 +240,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
             total: updated.finalAmount,
             status: "UNPAID",
           },
+          select: { id: true },
         })
       }
 
