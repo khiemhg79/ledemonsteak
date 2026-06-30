@@ -65,14 +65,10 @@ export default function OrdersPage() {
 
   useEffect(() => {
     loadOrders()
-    const timer = window.setInterval(() => {
-      if (document.visibilityState === "visible") loadOrders(true, true)
-    }, 3000)
     const unsubscribe = subscribeRealtime("staff", () => {
       if (document.visibilityState === "visible") loadOrders(true, true)
     })
     return () => {
-      window.clearInterval(timer)
       unsubscribe()
     }
   }, [])

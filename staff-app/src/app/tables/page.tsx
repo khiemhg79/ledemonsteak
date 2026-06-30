@@ -72,14 +72,10 @@ export default function TablesPage() {
 
   useEffect(() => {
     loadData()
-    const timer = window.setInterval(() => {
-      if (document.visibilityState === "visible") loadData(true, true)
-    }, 3000)
     const unsubscribe = subscribeRealtime("staff", () => {
       if (document.visibilityState === "visible") loadData(true, true)
     })
     return () => {
-      window.clearInterval(timer)
       unsubscribe()
     }
   }, [])

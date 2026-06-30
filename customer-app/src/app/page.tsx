@@ -96,10 +96,8 @@ export default function HomePage() {
       if (document.visibilityState === "visible") loadMenuAndTables(true, true)
     }
     const unsubscribe = subscribeRealtime("customer", refresh)
-    const timer = window.setInterval(refresh, 5000)
     return () => {
       unsubscribe()
-      window.clearInterval(timer)
     }
   }, [loadMenuAndTables])
 

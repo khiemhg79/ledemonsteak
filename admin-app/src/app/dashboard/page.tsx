@@ -44,14 +44,10 @@ export default function DashboardPage() {
 
   useEffect(() => {
     loadReport()
-    const timer = window.setInterval(() => {
-      if (document.visibilityState === "visible") loadReport(true, true)
-    }, 15000)
     const unsubscribe = subscribeRealtime("admin", () => {
       if (document.visibilityState === "visible") loadReport(true, true)
     })
     return () => {
-      window.clearInterval(timer)
       unsubscribe()
     }
   }, [])

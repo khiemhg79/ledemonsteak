@@ -52,16 +52,12 @@ export default function OrderPage() {
 
   useEffect(() => {
     loadOrders()
-    const timer = window.setInterval(() => {
-      if (document.visibilityState === "visible") loadOrders(false, true, true)
-    }, 3000)
     const unsubscribe = subscribeRealtime("customer", () => {
       if (document.visibilityState === "visible") loadOrders(false, true, true)
     })
     if (user) apiGet("/api/promotions").then(setPromos).catch(() => setPromos([]))
     else setPromos([])
     return () => {
-      window.clearInterval(timer)
       unsubscribe()
     }
   }, [tableId, user?.id])

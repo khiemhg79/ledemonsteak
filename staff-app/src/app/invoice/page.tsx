@@ -58,14 +58,10 @@ export default function InvoicePage() {
   }
   useEffect(() => {
     loadOrders()
-    const timer = window.setInterval(() => {
-      if (document.visibilityState === "visible") loadOrders(true)
-    }, 3000)
     const unsubscribe = subscribeRealtime("staff", () => {
       if (document.visibilityState === "visible") loadOrders(true)
     })
     return () => {
-      window.clearInterval(timer)
       unsubscribe()
     }
   }, [])

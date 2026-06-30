@@ -19,10 +19,8 @@ export default function HistoryPage() {
       if (document.visibilityState === "visible") load(true)
     }
     const unsubscribe = subscribeRealtime("customer", refresh)
-    const timer = window.setInterval(refresh, 5000)
     return () => {
       unsubscribe()
-      window.clearInterval(timer)
     }
   }, [tableId])
 
