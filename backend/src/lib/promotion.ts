@@ -16,7 +16,6 @@ export async function calculatePromotion(code: string, orderAmount: number, cust
   const now = new Date()
   if (!promo || !promo.isActive) throw new PromotionError("Ma giam gia khong hop le.")
   if (promo.startDate > now) throw new PromotionError("Ma giam gia chua den thoi gian ap dung.")
-  if (promo.endDate < now) throw new PromotionError("Ma giam gia da het han.")
   if (promo.usageLimit != null && promo.usageCount >= promo.usageLimit) throw new PromotionError("Ma giam gia da het luot su dung.")
   if (orderAmount < promo.minOrder) throw new PromotionError(`Don toi thieu ${promo.minOrder.toLocaleString("vi-VN")}d.`)
   if (customerId) {

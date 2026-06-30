@@ -89,30 +89,15 @@ export async function GET(req: NextRequest) {
   const auth = authorize(req, ["CUSTOMER", "ADMIN"])
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status, headers: corsHeaders() })
 
-  const promos = await prisma.promotion.findMany({ orderBy: { startDate: "desc" } })
+  const promos = await prisma.promotion.findMany({ orderBy: [{ isActive: "desc" }, { startDate: "desc" }] })
   if (auth.user.role === "ADMIN") return NextResponse.json(promos.map(exposePromotion), { headers: corsHeaders() })
 
   const now = new Date()
-  const eligiblePromos = promos
-    .filter((promo) => promo.isActive && promo.endDate >= now && (promo.usageLimit == null || promo.usageCount < promo.usageLimit))
-  const customer = await prisma.customer.findUnique({ where: { userId: auth.user.id }, select: { id: true } })
-  if (!customer) return NextResponse.json([], { headers: corsHeaders() })
-
-  await prisma.customerPromotion.createMany({
-    data: eligiblePromos.map((promo) => ({ customerId: customer.id, promotionId: promo.id })),
-    skipDuplicates: true,
-  })
-  const customerPromos = await prisma.customerPromotion.findMany({
-    where: { customerId: customer.id, promotionId: { in: eligiblePromos.map((promo) => promo.id) } },
-  })
-  const promoUsage = new Map(customerPromos.map((promo) => [promo.promotionId, promo]))
-  const available = eligiblePromos
-    .filter((promo) => !promoUsage.get(promo.id)?.isUsed)
+  const available = promos
+    .filter((promo) => promo.isActive && (promo.usageLimit == null || promo.usageCount < promo.usageLimit))
     .map((promo) => exposePromotion({
       ...promo,
       availabilityStatus: promo.startDate > now ? "UPCOMING" : "ACTIVE",
-      customerPromotionId: promoUsage.get(promo.id)?.id ?? null,
-      isUsed: false,
     }))
   return NextResponse.json(available, { headers: corsHeaders() })
 }
