@@ -115,7 +115,7 @@ model Table {
   id        String    @id @default(cuid())
   number    String    @unique @map("tableNumber")
   capacity  Int       @default(2)
-  status    String    @default("EMPTY")
+  status    TableStatus @default(EMPTY)
   isActive  Boolean   @default(true)
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -193,7 +193,7 @@ model Order {
   tableId       String?
   userId        String?
   customerId    String?
-  status        String        @default("PENDING") @map("orderStatus")
+  status        OrderStatus   @default(PENDING) @map("orderStatus")
   totalAmount   Float         @default(0) @map("subTotal")
   taxAmount     Float         @default(0)
   serviceCharge Float         @default(0)
@@ -300,7 +300,7 @@ model Payment {
   amount          Float
   paidAmount      Float     @default(0)
   changeAmount    Float     @default(0)
-  status          String    @default("PENDING") @map("paymentStatus")
+  status          PaymentStatus @default(PENDING) @map("paymentStatus")
   paidAt          DateTime?
   transactionCode String?
   createdAt       DateTime  @default(now())
