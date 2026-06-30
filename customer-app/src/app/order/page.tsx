@@ -6,6 +6,7 @@ import CartDrawer from "@/components/cart/CartDrawer"
 import OrderStatus from "@/components/order/OrderStatus"
 import VoucherList, { Voucher } from "@/components/promotions/VoucherList"
 import { apiGet, apiPost } from "@/lib/api"
+import { subscribeRealtime } from "@/lib/realtime"
 import { useAuth } from "@/store/auth"
 import { useCart } from "@/store/cart"
 
@@ -30,17 +31,17 @@ export default function OrderPage() {
   const [applyingCode, setApplyingCode] = useState("")
   const order = orders[0]
 
-  async function loadOrders(clearMessage = true) {
+  async function loadOrders(clearMessage = true, force = false, silent = false) {
     if (!tableId) { setOrders([]); setLoading(false); return }
-    setLoading(true)
+    if (!silent) setLoading(true)
     if (clearMessage) setMessage("")
     try {
       const query = tableId ? `?tableId=${tableId}` : ""
-      setOrders(await apiGet(`/api/orders${query}`))
+      setOrders(await apiGet(`/api/orders${query}`, undefined, { force }))
     } catch (error: any) {
-      setMessage(error.message || "Không tải được đơn hiện tại.")
+      if (!silent) setMessage(error.message || "Không tải được đơn hiện tại.")
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }
 
@@ -51,8 +52,18 @@ export default function OrderPage() {
 
   useEffect(() => {
     loadOrders()
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible") loadOrders(false, true, true)
+    }, 3000)
+    const unsubscribe = subscribeRealtime("customer", () => {
+      if (document.visibilityState === "visible") loadOrders(false, true, true)
+    })
     if (user) apiGet("/api/promotions").then(setPromos).catch(() => setPromos([]))
     else setPromos([])
+    return () => {
+      window.clearInterval(timer)
+      unsubscribe()
+    }
   }, [tableId, user?.id])
 
   useEffect(() => {
@@ -92,7 +103,7 @@ export default function OrderPage() {
       setPreviewTotal(updated.finalAmount)
       setMessage(`Đã gửi yêu cầu thanh toán. Nhân viên sẽ tới xác nhận đơn ${money(updated.finalAmount)}.`)
       setSuccessOpen(true)
-      await loadOrders(false)
+      await loadOrders(false, true)
     } catch (error: any) {
       setMessage(error.message || "Không gửi được yêu cầu thanh toán.")
     } finally {

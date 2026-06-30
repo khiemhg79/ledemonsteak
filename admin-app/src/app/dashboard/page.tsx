@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import RevenueChart, { ReportData } from "@/components/dashboard/RevenueChart"
 import { apiGet } from "@/lib/api"
+import { subscribeRealtime } from "@/lib/realtime"
 
 const emptyReport: ReportData = {
   monthly: [],
@@ -29,20 +30,30 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState("")
 
-  async function loadReport(force = false) {
-    setLoading(true)
-    setMessage("")
+  async function loadReport(force = false, silent = false) {
+    if (!silent) setLoading(true)
+    if (!silent) setMessage("")
     try {
       setReport(await apiGet("/api/admin/reports", undefined, { force }))
     } catch (error: any) {
-      setMessage(error.message || "Lỗi tải dữ liệu, không thể tạo báo cáo.")
+      if (!silent) setMessage(error.message || "Lỗi tải dữ liệu, không thể tạo báo cáo.")
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }
 
   useEffect(() => {
     loadReport()
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible") loadReport(true, true)
+    }, 15000)
+    const unsubscribe = subscribeRealtime("admin", () => {
+      if (document.visibilityState === "visible") loadReport(true, true)
+    })
+    return () => {
+      window.clearInterval(timer)
+      unsubscribe()
+    }
   }, [])
 
   return (

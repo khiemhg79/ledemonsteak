@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { useEffect, useMemo, useRef, useState } from "react"
 import OrderCard from "@/components/orders/OrderCard"
 import { apiGet, apiPatch } from "@/lib/api"
+import { subscribeRealtime } from "@/lib/realtime"
 import { useAuth } from "@/store/auth"
 
 type ViewMode = "orders" | "items"
@@ -65,9 +66,15 @@ export default function OrdersPage() {
   useEffect(() => {
     loadOrders()
     const timer = window.setInterval(() => {
-      if (document.visibilityState === "visible") loadOrders(true)
-    }, 8000)
-    return () => window.clearInterval(timer)
+      if (document.visibilityState === "visible") loadOrders(true, true)
+    }, 3000)
+    const unsubscribe = subscribeRealtime("staff", () => {
+      if (document.visibilityState === "visible") loadOrders(true, true)
+    })
+    return () => {
+      window.clearInterval(timer)
+      unsubscribe()
+    }
   }, [])
 
   const flatItems = useMemo(() => orders.flatMap((order) => order.items.map((item: any) => ({ ...item, order }))), [orders])

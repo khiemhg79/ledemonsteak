@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { apiGet } from "@/lib/api"
+import { subscribeRealtime } from "@/lib/realtime"
 import { useCart } from "@/store/cart"
 
 const money = (value: number) => value.toLocaleString("vi-VN") + "đ"
@@ -12,7 +13,17 @@ export default function HistoryPage() {
 
   useEffect(() => {
     if (!tableId) { setOrders([]); return }
-    apiGet(`/api/orders?tableId=${tableId}&status=ALL`).then(setOrders).catch(() => setOrders([]))
+    const load = (force = false) => apiGet(`/api/orders?tableId=${tableId}&status=ALL`, undefined, { force }).then(setOrders).catch(() => setOrders([]))
+    load()
+    const refresh = () => {
+      if (document.visibilityState === "visible") load(true)
+    }
+    const unsubscribe = subscribeRealtime("customer", refresh)
+    const timer = window.setInterval(refresh, 5000)
+    return () => {
+      unsubscribe()
+      window.clearInterval(timer)
+    }
   }, [tableId])
 
   return (

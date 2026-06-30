@@ -8,6 +8,7 @@ import TableGrid from "@/components/tables/TableGrid"
 import PaymentModal from "@/components/payments/PaymentModal"
 import OrderDetailModal from "@/components/orders/OrderDetailModal"
 import { apiGet, apiPatch } from "@/lib/api"
+import { subscribeRealtime } from "@/lib/realtime"
 import { useAuth } from "@/store/auth"
 
 type TableStatus = "EMPTY" | "OCCUPIED" | "REQUESTING_BILL"
@@ -72,9 +73,15 @@ export default function TablesPage() {
   useEffect(() => {
     loadData()
     const timer = window.setInterval(() => {
-      if (document.visibilityState === "visible") loadData(true)
-    }, 8000)
-    return () => window.clearInterval(timer)
+      if (document.visibilityState === "visible") loadData(true, true)
+    }, 3000)
+    const unsubscribe = subscribeRealtime("staff", () => {
+      if (document.visibilityState === "visible") loadData(true, true)
+    })
+    return () => {
+      window.clearInterval(timer)
+      unsubscribe()
+    }
   }, [])
   const requestCount = tables.filter((table) => table.status === "REQUESTING_BILL").length
   const activeOrderTableIds = new Set(orders.map((order) => order.tableId))

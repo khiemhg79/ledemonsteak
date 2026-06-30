@@ -1,4 +1,4 @@
-function apiBase() {
+export function apiBase() {
   const configured = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "")
   if (configured && (typeof window === "undefined" || window.location.protocol === "https:")) return configured
   if (typeof window !== "undefined") {
@@ -41,9 +41,9 @@ const responseCache = new Map<string, { expiresAt: number; data: any }>()
 const inflightGets = new Map<string, Promise<any>>()
 
 function cacheDuration(path: string) {
-  if (path.startsWith("/api/orders")) return 2_500
-  if (path === "/api/tables") return 5_000
-  if (path === "/api/invoices") return 15_000
+  if (path.startsWith("/api/orders")) return 0
+  if (path === "/api/tables") return 0
+  if (path === "/api/invoices") return 0
   return 0
 }
 

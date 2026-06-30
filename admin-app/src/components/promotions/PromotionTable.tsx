@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react"
 import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/api"
+import { subscribeRealtime } from "@/lib/realtime"
 import Modal from "@/components/ui/Modal"
 
 type DiscountType = "PERCENTAGE" | "FIXED"
@@ -110,6 +111,10 @@ export default function PromotionTable() {
 
   useEffect(() => {
     load()
+    const unsubscribe = subscribeRealtime("admin", () => {
+      if (document.visibilityState === "visible") load(true)
+    })
+    return unsubscribe
   }, [])
 
   function showCreate() {

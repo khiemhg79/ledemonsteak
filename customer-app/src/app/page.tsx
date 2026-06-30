@@ -1,10 +1,11 @@
 "use client"
 
 import Link from "next/link"
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import CartDrawer from "@/components/cart/CartDrawer"
 import DishCard from "@/components/menu/DishCard"
 import { apiGet, apiPost } from "@/lib/api"
+import { subscribeRealtime } from "@/lib/realtime"
 import { useAuth } from "@/store/auth"
 import { useCart } from "@/store/cart"
 
@@ -52,10 +53,10 @@ export default function HomePage() {
     setScannedQrToken(params.get("qrToken"))
   }, [hydrateAuth, hydrateCart])
 
-  useEffect(() => {
-    setLoading(true)
+  const loadMenuAndTables = useCallback((force = false, silent = false) => {
+    if (!silent) setLoading(true)
     setError("")
-    Promise.all([apiGet("/api/menu"), apiGet("/api/public/tables")])
+    Promise.all([apiGet("/api/menu", undefined, { force }), apiGet("/api/public/tables", undefined, { force })])
       .then(async ([menu, tableList]) => {
         setCategories(menu.categories ?? [])
         setDishes(menu.dishes ?? [])
@@ -88,6 +89,19 @@ export default function HomePage() {
       .catch((err) => setError(err.message || "Không tải được thực đơn."))
       .finally(() => setLoading(false))
   }, [qrTableId, scannedQrToken, tableId, qrToken, setTableId, clearTableId])
+
+  useEffect(() => {
+    loadMenuAndTables()
+    const refresh = () => {
+      if (document.visibilityState === "visible") loadMenuAndTables(true, true)
+    }
+    const unsubscribe = subscribeRealtime("customer", refresh)
+    const timer = window.setInterval(refresh, 5000)
+    return () => {
+      unsubscribe()
+      window.clearInterval(timer)
+    }
+  }, [loadMenuAndTables])
 
   const currentTable = tables.find((table) => table.id === tableId)
 

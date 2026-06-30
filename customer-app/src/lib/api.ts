@@ -1,4 +1,4 @@
-function apiBase() {
+export function apiBase() {
   const configured = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "")
   if (configured && (typeof window === "undefined" || window.location.protocol === "https:")) return configured
   if (typeof window !== "undefined") {
@@ -15,12 +15,14 @@ async function readError(res: Response) {
 }
 
 const REQUEST_TIMEOUT_MS = 10_000
+type RequestOptions = RequestInit & { timeoutMs?: number }
 
-async function request(input: RequestInfo | URL, init?: RequestInit) {
+async function request(input: RequestInfo | URL, init?: RequestOptions) {
   const controller = new AbortController()
-  const timeout = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+  const { timeoutMs, ...requestInit } = init ?? {}
+  const timeout = window.setTimeout(() => controller.abort(), timeoutMs ?? REQUEST_TIMEOUT_MS)
   try {
-    return await fetch(input, { ...init, signal: controller.signal })
+    return await fetch(input, { ...requestInit, signal: controller.signal })
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") {
       throw new Error("Hệ thống phản hồi quá lâu. Vui lòng thử lại.")
@@ -46,12 +48,12 @@ function authToken(token?: string) {
   return typeof window !== "undefined" ? localStorage.getItem("token") ?? undefined : undefined
 }
 
-export async function apiGet(path: string, token?: string) {
+export async function apiGet(path: string, token?: string, options?: { force?: boolean }) {
   const currentToken = authToken(token)
   const cacheKey = `${path}|${currentToken ?? "guest"}`
   const maxAge = cacheDuration(path)
   const cached = responseCache.get(cacheKey)
-  if (cached && cached.expiresAt > Date.now()) return cached.data
+  if (!options?.force && cached && cached.expiresAt > Date.now()) return cached.data
 
   const pending = inflightGets.get(cacheKey)
   if (pending) return pending
@@ -70,12 +72,13 @@ export async function apiGet(path: string, token?: string) {
   return promise
 }
 
-export async function apiPost(path: string, body: any, token?: string) {
+export async function apiPost(path: string, body: any, token?: string, options?: { timeoutMs?: number }) {
   const currentToken = authToken(token)
   const res = await request(`${apiBase()}${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...(currentToken ? { Authorization: `Bearer ${currentToken}` } : {}) },
     body: JSON.stringify(body),
+    timeoutMs: options?.timeoutMs,
   })
   if (!res.ok) throw new Error(await readError(res))
   responseCache.clear()

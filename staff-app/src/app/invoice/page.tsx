@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { useEffect, useMemo, useRef, useState } from "react"
 import PaymentModal from "@/components/payments/PaymentModal"
 import { apiGet } from "@/lib/api"
+import { subscribeRealtime } from "@/lib/realtime"
 import { useAuth } from "@/store/auth"
 
 const money = (value: number) => Number(value || 0).toLocaleString("vi-VN") + "đ"
@@ -58,9 +59,15 @@ export default function InvoicePage() {
   useEffect(() => {
     loadOrders()
     const timer = window.setInterval(() => {
-      if (document.visibilityState === "visible") loadOrders()
-    }, 10_000)
-    return () => window.clearInterval(timer)
+      if (document.visibilityState === "visible") loadOrders(true)
+    }, 3000)
+    const unsubscribe = subscribeRealtime("staff", () => {
+      if (document.visibilityState === "visible") loadOrders(true)
+    })
+    return () => {
+      window.clearInterval(timer)
+      unsubscribe()
+    }
   }, [])
 
   return <main className="min-h-screen bg-[#F7F7F7]">

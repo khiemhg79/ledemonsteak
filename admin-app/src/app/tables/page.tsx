@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react"
 import Modal from "@/components/ui/Modal"
 import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/api"
+import { subscribeRealtime } from "@/lib/realtime"
 
 type TableStatus = "EMPTY" | "OCCUPIED" | "REQUESTING_BILL"
 type DiningTable = {
@@ -65,6 +66,10 @@ export default function TablesPage() {
 
   useEffect(() => {
     load()
+    const unsubscribe = subscribeRealtime("admin", () => {
+      if (document.visibilityState === "visible") load(true)
+    })
+    return unsubscribe
   }, [])
 
   const validation = useMemo(() => {

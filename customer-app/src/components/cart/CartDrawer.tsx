@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import VoucherList, { Voucher } from "@/components/promotions/VoucherList"
 import { apiGet, apiPost } from "@/lib/api"
+import { subscribeRealtime } from "@/lib/realtime"
 import { useAuth } from "@/store/auth"
 import { useCart } from "@/store/cart"
 
@@ -25,7 +26,17 @@ export default function CartDrawer() {
 
   useEffect(() => {
     if (!open || !user) { setPromos([]); return }
-    apiGet("/api/promotions").then(setPromos).catch(() => setPromos([]))
+    const load = (force = false) => apiGet("/api/promotions", undefined, { force }).then(setPromos).catch(() => setPromos([]))
+    load()
+    const refresh = () => {
+      if (document.visibilityState === "visible") load(true)
+    }
+    const unsubscribe = subscribeRealtime("customer", refresh)
+    const timer = window.setInterval(refresh, 5000)
+    return () => {
+      unsubscribe()
+      window.clearInterval(timer)
+    }
   }, [open, user?.id])
 
   useEffect(() => {

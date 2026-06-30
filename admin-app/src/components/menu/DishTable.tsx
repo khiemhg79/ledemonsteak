@@ -2,6 +2,7 @@
 
 import { Fragment, FormEvent, useEffect, useMemo, useState } from "react"
 import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/api"
+import { subscribeRealtime } from "@/lib/realtime"
 import Modal from "@/components/ui/Modal"
 
 type Tab = "dishes" | "combos" | "categories"
@@ -65,6 +66,10 @@ export default function DishTable() {
 
   useEffect(() => {
     loadMenu()
+    const unsubscribe = subscribeRealtime("admin", () => {
+      if (document.visibilityState === "visible") loadMenu(true)
+    })
+    return unsubscribe
   }, [])
 
   const activeDishes = useMemo(() => data.dishes.filter((dish) => dish.isActive), [data.dishes])
