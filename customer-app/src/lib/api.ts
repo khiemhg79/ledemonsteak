@@ -14,7 +14,7 @@ async function readError(res: Response) {
   try { return JSON.parse(text).error || text } catch { return text }
 }
 
-const REQUEST_TIMEOUT_MS = 10_000
+const REQUEST_TIMEOUT_MS = 20_000
 type RequestOptions = RequestInit & { timeoutMs?: number }
 
 async function request(input: RequestInfo | URL, init?: RequestOptions) {

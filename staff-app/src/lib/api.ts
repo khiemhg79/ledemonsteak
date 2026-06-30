@@ -18,7 +18,7 @@ function authToken(token?: string) {
   return typeof window !== "undefined" ? localStorage.getItem("token") ?? undefined : undefined
 }
 
-const REQUEST_TIMEOUT_MS = 10_000
+const REQUEST_TIMEOUT_MS = 20_000
 type RequestOptions = RequestInit & { timeoutMs?: number }
 
 async function request(input: RequestInfo | URL, init?: RequestOptions) {

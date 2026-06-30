@@ -26,9 +26,13 @@ export default function TablesPage() {
   const [error, setError] = useState("")
   const dismissed = useRef(new Set<string>())
   const loadingRef = useRef(false)
+  const pendingRefreshRef = useRef(false)
 
   async function loadData(silent = false, force = false) {
-    if (loadingRef.current) return
+    if (loadingRef.current) {
+      if (force) pendingRefreshRef.current = true
+      return
+    }
     loadingRef.current = true
     if (!silent) setLoading(true)
     setError("")
@@ -44,6 +48,10 @@ export default function TablesPage() {
     } catch (err) { setError(err instanceof Error ? err.message : "Không tải được dữ liệu bàn.") } finally {
       loadingRef.current = false
       if (!silent) setLoading(false)
+      if (pendingRefreshRef.current) {
+        pendingRefreshRef.current = false
+        void loadData(true, true)
+      }
     }
   }
 

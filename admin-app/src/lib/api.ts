@@ -24,7 +24,7 @@ async function ensureOk(res: Response, hadToken: boolean) {
   throw new Error(error)
 }
 
-const REQUEST_TIMEOUT_MS = 10_000
+const REQUEST_TIMEOUT_MS = 20_000
 
 async function request(input: RequestInfo | URL, init?: RequestInit) {
   const controller = new AbortController()

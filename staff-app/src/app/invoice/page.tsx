@@ -30,10 +30,14 @@ export default function InvoicePage() {
   const [view, setView] = useState<"pending" | "paid">("pending")
   const [error, setError] = useState("")
   const loadingRef = useRef(false)
+  const pendingRefreshRef = useRef(false)
   const requesting = useMemo(() => orders.filter((order) => order.table?.status === "REQUESTING_BILL"), [orders])
 
   async function loadOrders(force = false) {
-    if (loadingRef.current) return
+    if (loadingRef.current) {
+      if (force) pendingRefreshRef.current = true
+      return
+    }
     loadingRef.current = true
     setError("")
     try {
@@ -44,6 +48,10 @@ export default function InvoicePage() {
       setError(err instanceof Error ? err.message : "Không tải được hóa đơn.")
     } finally {
       loadingRef.current = false
+      if (pendingRefreshRef.current) {
+        pendingRefreshRef.current = false
+        void loadOrders(true)
+      }
     }
   }
   function completed() { setSelected(null); loadOrders(true) }

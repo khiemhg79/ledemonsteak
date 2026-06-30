@@ -37,9 +37,13 @@ export default function OrdersPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const loadingRef = useRef(false)
+  const pendingRefreshRef = useRef(false)
 
   async function loadOrders(silent = false, force = false) {
-    if (loadingRef.current) return
+    if (loadingRef.current) {
+      if (force) pendingRefreshRef.current = true
+      return
+    }
     loadingRef.current = true
     if (!silent) setLoading(true)
     setError("")
@@ -50,6 +54,10 @@ export default function OrdersPage() {
     } finally {
       loadingRef.current = false
       if (!silent) setLoading(false)
+      if (pendingRefreshRef.current) {
+        pendingRefreshRef.current = false
+        void loadOrders(true, true)
+      }
     }
   }
 
