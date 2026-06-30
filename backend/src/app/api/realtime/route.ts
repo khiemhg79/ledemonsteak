@@ -20,11 +20,11 @@ function scopeTables(scope: string | null) {
 function signatureSql(tableName: string) {
   switch (tableName) {
     case "orderdetails":
-      return `(select concat('orderdetails:', count(*)::text, ':', coalesce(md5(string_agg(concat_ws(':', "id", "orderId", coalesce("itemId", ''), coalesce("comboId", ''), "quantity"::text, "price"::text, "status"::text), '|' order by "id")), '')) from "orderdetails")`
+      return `(select concat('orderdetails:', count(*)::text, ':', coalesce(max("id"), '')) from "orderdetails")`
     case "comboitems":
-      return `(select concat('comboitems:', count(*)::text, ':', coalesce(md5(string_agg(concat_ws(':', "id", "comboId", "itemId", "quantity"::text), '|' order by "id")), '')) from "comboitems")`
+      return `(select concat('comboitems:', count(*)::text, ':', coalesce(max("id"), '')) from "comboitems")`
     case "customerpromotions":
-      return `(select concat('customerpromotions:', count(*)::text, ':', coalesce(md5(string_agg(concat_ws(':', "id", "customerId", "promotionId", "isUsed"::text, coalesce(extract(epoch from "usedAt")::text, '')), '|' order by "id")), '')) from "customerpromotions")`
+      return `(select concat('customerpromotions:', count(*)::text, ':', coalesce(max("id"), '')) from "customerpromotions")`
     default:
       return `(select concat('${tableName}:', count(*)::text, ':', coalesce(extract(epoch from max("updatedAt"))::text, '0')) from "${tableName}")`
   }

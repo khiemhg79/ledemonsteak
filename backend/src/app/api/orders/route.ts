@@ -7,7 +7,21 @@ import { prisma } from "@/lib/prisma"
 import { calculatePromotion, PromotionError } from "@/lib/promotion"
 import { qrTokenError, verifyTableQrToken } from "@/lib/qrToken"
 
+export const dynamic = "force-dynamic"
+export const revalidate = 0
+
 export async function OPTIONS() { return optionsResponse() }
+
+const orderDetailSelect = {
+  id: true,
+  itemId: true,
+  comboId: true,
+  quantity: true,
+  price: true,
+  status: true,
+  item: { select: { id: true, name: true } },
+  combo: { select: { id: true, name: true } },
+} as const
 
 export async function POST(req: NextRequest) {
   try {
@@ -101,12 +115,24 @@ export async function POST(req: NextRequest) {
             })),
           },
         },
-        include: {
+        select: {
+          id: true,
+          orderNumber: true,
+          tableId: true,
+          userId: true,
+          customerId: true,
+          status: true,
+          totalAmount: true,
+          taxAmount: true,
+          serviceCharge: true,
+          discount: true,
+          finalAmount: true,
+          promoCode: true,
+          customerNotes: true,
+          createdAt: true,
+          updatedAt: true,
           orderDetails: {
-            include: {
-              item: { select: { id: true, name: true } },
-              combo: { select: { id: true, name: true } },
-            },
+            select: orderDetailSelect,
           },
         },
       })
@@ -140,16 +166,29 @@ export async function GET(req: NextRequest) {
 
     const orders = await prisma.order.findMany({
       where,
-      include: {
+      select: {
+        id: true,
+        orderNumber: true,
+        tableId: true,
+        userId: true,
+        customerId: true,
+        status: true,
+        totalAmount: true,
+        taxAmount: true,
+        serviceCharge: true,
+        discount: true,
+        finalAmount: true,
+        promoCode: true,
+        customerNotes: true,
+        createdAt: true,
+        updatedAt: true,
         table: { select: { id: true, number: true, status: true } },
         orderDetails: {
-          include: {
-            item: { select: { id: true, name: true } },
-            combo: { select: { id: true, name: true } },
-          },
+          select: orderDetailSelect,
         },
       },
       orderBy: { createdAt: staffView ? "asc" : "desc" },
+      take: staffView ? 120 : 30,
     })
     return NextResponse.json(orders.map(attachOrderItems), { headers: corsHeaders() })
   } catch (error) {

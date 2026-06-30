@@ -4,6 +4,9 @@ import { corsHeaders, optionsResponse } from "@/lib/cors"
 import { prisma } from "@/lib/prisma"
 import { attachOrderItems } from "@/lib/orderLines"
 
+export const dynamic = "force-dynamic"
+export const revalidate = 0
+
 export async function OPTIONS() { return optionsResponse() }
 
 export async function GET(req: NextRequest) {
@@ -13,14 +16,46 @@ export async function GET(req: NextRequest) {
     const invoices = await prisma.invoice.findMany({
       where: { status: "PAID" },
       orderBy: { paidAt: "desc" },
-      include: {
-        table: true,
-        customer: { include: { user: true } },
+      take: 100,
+      select: {
+        id: true,
+        invoiceCode: true,
+        orderId: true,
+        customerId: true,
+        tableId: true,
+        subtotal: true,
+        customerName: true,
+        customerTaxCode: true,
+        taxAmount: true,
+        total: true,
+        paymentMethod: true,
+        status: true,
+        issuedAt: true,
+        updatedAt: true,
+        paidAt: true,
+        note: true,
+        table: { select: { id: true, number: true, capacity: true, status: true } },
+        customer: {
+          select: {
+            id: true,
+            name: true,
+            user: { select: { id: true, name: true, phone: true } },
+          },
+        },
         payments: { where: { status: "SUCCESS" }, orderBy: { paidAt: "desc" }, take: 1 },
         order: {
-          include: {
+          select: {
+            id: true,
+            orderNumber: true,
+            customerNotes: true,
             orderDetails: {
-              include: {
+              select: {
+                id: true,
+                itemId: true,
+                comboId: true,
+                quantity: true,
+                price: true,
+                status: true,
                 item: { select: { id: true, name: true } },
                 combo: { select: { id: true, name: true } },
               },

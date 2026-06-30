@@ -4,6 +4,9 @@ import { corsHeaders, optionsResponse } from "@/lib/cors"
 import { prisma } from "@/lib/prisma"
 import { attachOrderItems } from "@/lib/orderLines"
 
+export const dynamic = "force-dynamic"
+export const revalidate = 0
+
 function adminOnly(req: NextRequest) {
   const auth = authorize(req, ["ADMIN"])
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status, headers: corsHeaders() })
@@ -31,6 +34,7 @@ export async function GET(req: NextRequest) {
     const completedOrders = await prisma.order.findMany({
       where: { status: "COMPLETED" },
       orderBy: { createdAt: "asc" },
+      take: 300,
       select: {
         id: true,
         finalAmount: true,

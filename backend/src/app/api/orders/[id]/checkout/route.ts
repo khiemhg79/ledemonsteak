@@ -5,6 +5,9 @@ import { attachOrderItems } from "@/lib/orderLines"
 import { prisma } from "@/lib/prisma"
 import { calculatePromotion, PromotionError } from "@/lib/promotion"
 
+export const dynamic = "force-dynamic"
+export const revalidate = 0
+
 export async function OPTIONS() { return optionsResponse() }
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
@@ -27,75 +30,103 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       }
 
       const paidAt = new Date()
-      const existingInvoice = await prisma.invoice.findFirst({ where: { orderId: order.id } })
-      const invoice = existingInvoice
-        ? await prisma.invoice.update({
-          where: { id: existingInvoice.id },
-          data: {
-            customerId: order.customerId,
-            tableId: order.tableId,
-            subtotal: order.totalAmount,
-            total: order.finalAmount,
-          },
-        })
-        : await prisma.invoice.create({
-          data: {
-            invoiceCode: `INV-${order.id.slice(-8).toUpperCase()}`,
-            orderId: order.id,
-            customerId: order.customerId,
-            tableId: order.tableId,
-            subtotal: order.totalAmount,
-            total: order.finalAmount,
-          },
-        })
-      const paidInvoice = await prisma.invoice.update({
-        where: { id: invoice.id },
-        data: { status: "PAID", paidAt, paymentMethod: selectedMethod },
-      })
-      const payment = await prisma.payment.create({
-        data: {
-          invoiceId: invoice.id,
-          orderId: order.id,
-          method: selectedMethod,
-          amount: paidAmount,
-          paidAmount,
-          changeAmount: paidAmount - order.finalAmount,
-          status: "SUCCESS",
-          paidAt,
-        },
-      })
-      await prisma.table.update({ where: { id: order.tableId }, data: { status: "EMPTY" } })
-      await prisma.order.update({ where: { id: params.id }, data: { status: "COMPLETED" } })
-      if (order.promoCode) {
-        await prisma.promotion.update({ where: { id: order.promoCode }, data: { usageCount: { increment: 1 } } })
-        if (order.customerId) {
-          const customerPromo = await prisma.customerPromotion.findFirst({
-            where: { customerId: order.customerId, promotionId: order.promoCode },
+      const { paidInvoice, payment, completedOrder } = await prisma.$transaction(async (tx) => {
+        const existingInvoice = await tx.invoice.findFirst({ where: { orderId: order.id } })
+        const invoice = existingInvoice
+          ? await tx.invoice.update({
+            where: { id: existingInvoice.id },
+            data: {
+              customerId: order.customerId,
+              tableId: order.tableId,
+              subtotal: order.totalAmount,
+              total: order.finalAmount,
+            },
           })
-          if (customerPromo) {
-            await prisma.customerPromotion.update({
-              where: { id: customerPromo.id },
-              data: { isUsed: true, usedAt: paidAt },
-            })
-          } else {
-            await prisma.customerPromotion.create({
-              data: { customerId: order.customerId, promotionId: order.promoCode, isUsed: true, usedAt: paidAt },
+          : await tx.invoice.create({
+            data: {
+              invoiceCode: `INV-${order.id.slice(-8).toUpperCase()}`,
+              orderId: order.id,
+              customerId: order.customerId,
+              tableId: order.tableId,
+              subtotal: order.totalAmount,
+              total: order.finalAmount,
+            },
+          })
+
+        const [paidInvoice, payment] = await Promise.all([
+          tx.invoice.update({
+            where: { id: invoice.id },
+            data: { status: "PAID", paidAt, paymentMethod: selectedMethod },
+          }),
+          tx.payment.create({
+            data: {
+              invoiceId: invoice.id,
+              orderId: order.id,
+              method: selectedMethod,
+              amount: paidAmount,
+              paidAmount,
+              changeAmount: paidAmount - order.finalAmount,
+              status: "SUCCESS",
+              paidAt,
+            },
+          }),
+          tx.table.update({ where: { id: order.tableId! }, data: { status: "EMPTY" } }),
+          tx.order.update({ where: { id: params.id }, data: { status: "COMPLETED" } }),
+        ])
+
+        if (order.promoCode) {
+          await tx.promotion.update({ where: { id: order.promoCode }, data: { usageCount: { increment: 1 } } })
+          if (order.customerId) {
+            await tx.customerPromotion.upsert({
+              where: { customerId_promotionId: { customerId: order.customerId, promotionId: order.promoCode } },
+              update: { isUsed: true, usedAt: paidAt },
+              create: { customerId: order.customerId, promotionId: order.promoCode, isUsed: true, usedAt: paidAt },
             })
           }
         }
-      }
-      const completedOrder = await prisma.order.findUnique({
-        where: { id: params.id },
-        include: {
-          table: true,
-          customer: { include: { user: true } },
-          orderDetails: {
-            include: {
-              item: { select: { id: true, name: true } },
-              combo: { select: { id: true, name: true } },
+
+        const completedOrder = await tx.order.findUnique({
+          where: { id: params.id },
+          select: {
+            id: true,
+            orderNumber: true,
+            tableId: true,
+            userId: true,
+            customerId: true,
+            status: true,
+            totalAmount: true,
+            taxAmount: true,
+            serviceCharge: true,
+            discount: true,
+            finalAmount: true,
+            promoCode: true,
+            customerNotes: true,
+            createdAt: true,
+            updatedAt: true,
+            table: { select: { id: true, number: true, status: true } },
+            customer: {
+              select: {
+                id: true,
+                name: true,
+                user: { select: { id: true, name: true, phone: true } },
+              },
+            },
+            orderDetails: {
+              select: {
+                id: true,
+                itemId: true,
+                comboId: true,
+                quantity: true,
+                price: true,
+                status: true,
+                item: { select: { id: true, name: true } },
+                combo: { select: { id: true, name: true } },
+              },
             },
           },
-        },
+        })
+
+        return { paidInvoice, payment, completedOrder }
       })
 
       return NextResponse.json({
@@ -125,27 +156,23 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       }
     }
 
-    await prisma.table.update({ where: { id: order.tableId }, data: { status: "REQUESTING_BILL" } })
-    const updated = await prisma.order.update({
-      where: { id: params.id },
-      data: { discount, finalAmount, promoCode: appliedPromoCode },
-    })
+    const updated = await prisma.$transaction(async (tx) => {
+      await tx.table.update({ where: { id: order.tableId! }, data: { status: "REQUESTING_BILL" } })
+      const updated = await tx.order.update({
+        where: { id: params.id },
+        data: { discount, finalAmount, promoCode: appliedPromoCode },
+      })
 
-    const unpaidInvoice = await prisma.invoice.findFirst({ where: { orderId: order.id } })
-    if (unpaidInvoice) {
-      await prisma.invoice.update({
-        where: { id: unpaidInvoice.id },
-        data: {
+      await tx.invoice.upsert({
+        where: { orderId: order.id },
+        update: {
           customerId: order.customerId,
           tableId: order.tableId,
           subtotal: updated.totalAmount,
           total: updated.finalAmount,
           status: "UNPAID",
         },
-      })
-    } else {
-      await prisma.invoice.create({
-        data: {
+        create: {
           invoiceCode: `INV-${order.id.slice(-8).toUpperCase()}`,
           orderId: order.id,
           customerId: order.customerId,
@@ -155,7 +182,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           status: "UNPAID",
         },
       })
-    }
+
+      return updated
+    })
 
     return NextResponse.json(updated, { headers: corsHeaders() })
   } catch (error) {
