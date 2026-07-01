@@ -1,5 +1,4 @@
 import { createClient } from "@supabase/supabase-js"
-import { apiBase } from "@/lib/api"
 
 const tableScopes: Record<string, string[]> = {
   customer: ["categories", "items", "combos", "comboitems", "orders", "orderdetails", "invoices", "payments", "promotions", "customerpromotions", "tables"],
@@ -8,6 +7,9 @@ const tableScopes: Record<string, string[]> = {
 }
 
 const REALTIME_REFRESH_DEBOUNCE_MS = 120
+const FAST_POLL_MS = 1800
+
+let sharedClient: ReturnType<typeof createClient> | null = null
 
 function hasSupabaseEnv() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? ""
@@ -15,55 +17,72 @@ function hasSupabaseEnv() {
   return Boolean(url && key && !url.includes("YOUR_PROJECT_REF") && !key.includes("YOUR_SUPABASE_ANON_KEY"))
 }
 
-function subscribeSse(scope: string, onUpdate: () => void) {
-  if (typeof window === "undefined" || typeof EventSource === "undefined") return () => {}
-
-  const source = new EventSource(`${apiBase()}/api/realtime?scope=${encodeURIComponent(scope)}`)
-  let debounceTimer: number | undefined
-
-  source.addEventListener("update", () => {
-    if (debounceTimer) window.clearTimeout(debounceTimer)
-    debounceTimer = window.setTimeout(() => {
-      debounceTimer = undefined
-      onUpdate()
-    }, REALTIME_REFRESH_DEBOUNCE_MS)
-  })
-
-  return () => {
-    if (debounceTimer) window.clearTimeout(debounceTimer)
-    source.close()
+function getClient() {
+  if (!hasSupabaseEnv()) return null
+  if (!sharedClient) {
+    sharedClient = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+      realtime: {
+        params: {
+          eventsPerSecond: 20,
+        },
+      },
+    })
   }
+  return sharedClient
 }
 
-export function subscribeRealtime(scope: string, onUpdate: () => void) {
+export function subscribeRealtime(scope: string, onUpdate: () => void | Promise<void>, pollMs = FAST_POLL_MS) {
   if (typeof window === "undefined") return () => {}
-  if (!hasSupabaseEnv()) return subscribeSse(scope, onUpdate)
 
-  const client = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
-  const channel = client.channel(`le-monde-${scope}`)
+  const client = getClient()
   const tables = tableScopes[scope] ?? tableScopes.customer
   let debounceTimer: number | undefined
+  let pollTimer: number | undefined
+  let channel: ReturnType<NonNullable<typeof client>["channel"]> | null = null
+  let stopped = false
 
   const notify = () => {
+    if (stopped) return
     if (debounceTimer) window.clearTimeout(debounceTimer)
     debounceTimer = window.setTimeout(() => {
       debounceTimer = undefined
-      onUpdate()
+      void onUpdate()
     }, REALTIME_REFRESH_DEBOUNCE_MS)
   }
 
-  tables.forEach((table) => {
-    channel.on("postgres_changes", { event: "*", schema: "public", table }, notify)
-  })
+  const onFocus = () => notify()
+  const onVisibilityChange = () => {
+    if (document.visibilityState === "visible") notify()
+  }
 
-  channel.subscribe((status) => {
-    if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
-      console.warn("Supabase realtime unavailable. Check env and table replication.")
-    }
-  })
+  window.addEventListener("focus", onFocus)
+  document.addEventListener("visibilitychange", onVisibilityChange)
+  pollTimer = window.setInterval(notify, pollMs)
+
+  if (client) {
+    channel = client.channel(`le-monde-${scope}-${crypto.randomUUID()}`)
+
+    tables.forEach((table) => {
+      channel?.on("postgres_changes", { event: "*", schema: "public", table }, notify)
+    })
+
+    channel.subscribe((status) => {
+      if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+        console.warn("Supabase realtime unavailable. Fast polling fallback is active.")
+      }
+    })
+  } else {
+    console.warn("Missing Supabase realtime env. Fast polling fallback is active.")
+  }
 
   return () => {
+    stopped = true
     if (debounceTimer) window.clearTimeout(debounceTimer)
-    client.removeChannel(channel)
+    if (pollTimer) window.clearInterval(pollTimer)
+    window.removeEventListener("focus", onFocus)
+    document.removeEventListener("visibilitychange", onVisibilityChange)
+    if (client && channel) {
+      void client.removeChannel(channel)
+    }
   }
 }
