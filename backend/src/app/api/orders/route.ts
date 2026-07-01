@@ -162,7 +162,7 @@ export async function GET(req: NextRequest) {
     const where: any = {}
     if (tableId) where.tableId = tableId
     if (status && status !== "ALL") where.status = status
-    else if (!status) where.status = { in: ["PENDING", "CONFIRMED"] }
+    else if (!status) where.status = { notIn: ["COMPLETED", "CANCELLED"] }
 
     const orders = await prisma.order.findMany({
       where,

@@ -5,6 +5,9 @@ import { prisma } from "@/lib/prisma"
 
 const tableStatuses = ["EMPTY", "OCCUPIED", "REQUESTING_BILL"] as const
 
+export const dynamic = "force-dynamic"
+export const revalidate = 0
+
 function authError(req: NextRequest, roles: string[]) {
   const auth = authorize(req, roles)
   if (!auth.ok) return { response: NextResponse.json({ error: auth.error }, { status: auth.status, headers: corsHeaders() }) }
@@ -37,11 +40,29 @@ export async function GET(req: NextRequest) {
   const checked = authError(req, ["STAFF", "ADMIN"])
   if (checked.response) return checked.response
 
-  const tables = await prisma.table.findMany({
-    where: { isActive: true },
-    orderBy: { number: "asc" },
+  const [tables, activeOrders] = await Promise.all([
+    prisma.table.findMany({
+      where: { isActive: true },
+      orderBy: { number: "asc" },
+    }),
+    prisma.order.findMany({
+      where: {
+        tableId: { not: null },
+        status: { notIn: ["COMPLETED", "CANCELLED"] },
+      },
+      select: { tableId: true },
+    }),
+  ])
+
+  const activeOrderTableIds = new Set(activeOrders.map((order) => order.tableId).filter(Boolean))
+  const syncedTables = tables.map((table) => {
+    if (table.status === "REQUESTING_BILL") return table
+    if (activeOrderTableIds.has(table.id)) return { ...table, status: "OCCUPIED" }
+    if (table.status === "OCCUPIED") return { ...table, status: "EMPTY" }
+    return table
   })
-  return NextResponse.json(tables, { headers: corsHeaders() })
+
+  return NextResponse.json(syncedTables, { headers: corsHeaders() })
 }
 
 export async function POST(req: NextRequest) {

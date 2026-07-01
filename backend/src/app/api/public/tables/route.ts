@@ -2,6 +2,9 @@ import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { corsHeaders, optionsResponse } from "@/lib/cors"
 
+export const dynamic = "force-dynamic"
+export const revalidate = 0
+
 export async function OPTIONS() { return optionsResponse() }
 
 export async function GET() {
@@ -11,6 +14,6 @@ export async function GET() {
     orderBy: { number: "asc" },
   })
   return NextResponse.json(tables, {
-    headers: { ...corsHeaders(), "Cache-Control": "public, s-maxage=30, stale-while-revalidate=120" },
+    headers: corsHeaders(),
   })
 }
