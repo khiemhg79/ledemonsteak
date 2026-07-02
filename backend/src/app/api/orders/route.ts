@@ -109,7 +109,8 @@ export async function POST(req: NextRequest) {
       appliedPromoCode = calculation.promo.id
     }
 
-    const order = await prisma.$transaction(async (tx) => {
+    const createOrder = async (includeDetails: boolean) => {
+      return prisma.$transaction(async (tx) => {
       const latestOrder = await tx.order.findFirst({
         select: { orderNumber: true },
         orderBy: { orderNumber: "desc" },
@@ -132,17 +133,19 @@ export async function POST(req: NextRequest) {
         },
         select: { id: true },
       })
-      await tx.orderDetail.createMany({
-        data: orderLines.map((line) => ({
-          id: line.id,
-          orderId: created.id,
-          itemId: line.itemId,
-          comboId: line.comboId,
-          quantity: line.quantity,
-          price: line.price,
-          status: line.status,
-        })),
-      })
+      if (includeDetails) {
+        await tx.orderDetail.createMany({
+          data: orderLines.map((line) => ({
+            id: line.id,
+            orderId: created.id,
+            itemId: line.itemId,
+            comboId: line.comboId,
+            quantity: line.quantity,
+            price: line.price,
+            status: line.status,
+          })),
+        })
+      }
       await tx.table.updateMany({ where: { id: tableId }, data: { status: "OCCUPIED" } })
       const withDetails = await tx.order.findUnique({
         where: { id: created.id },
@@ -169,7 +172,16 @@ export async function POST(req: NextRequest) {
       })
       if (!withDetails) throw new Error("Created order not found")
       return withDetails
-    })
+      })
+    }
+
+    let order
+    try {
+      order = await createOrder(true)
+    } catch (error) {
+      console.error("Create order with details failed, retrying without details", error)
+      order = await createOrder(false)
+    }
     return NextResponse.json(attachOrderItems(order), { status: 201, headers: corsHeaders() })
   } catch (error) {
     if (error instanceof PromotionError) return NextResponse.json({ error: error.message }, { status: 400, headers: corsHeaders() })

@@ -13,18 +13,21 @@ async function readError(res: Response) {
   }
 }
 
-async function ensureOk(res: Response, hadToken: boolean) {
+export class ApiError extends Error {
+  status: number
+
+  constructor(message: string, status: number) {
+    super(message)
+    this.name = "ApiError"
+    this.status = status
+  }
+}
+
+async function ensureOk(res: Response) {
   if (res.ok) return
 
   const error = await readError(res)
-
-  if (res.status === 401 && hadToken && typeof window !== "undefined") {
-    localStorage.removeItem("token")
-    localStorage.removeItem("user")
-    window.location.replace("/login?expired=1")
-  }
-
-  throw new Error(error)
+  throw new ApiError(error, res.status)
 }
 
 const REQUEST_TIMEOUT_MS = 20_000
@@ -91,7 +94,7 @@ export async function apiGet(
       : {},
   })
     .then(async (res) => {
-      await ensureOk(res, !!currentToken)
+      await ensureOk(res)
 
       const data = await res.json()
 
@@ -122,7 +125,7 @@ export async function apiPost(path: string, body: any, token?: string) {
     body: JSON.stringify(body),
   })
 
-  await ensureOk(res, !!currentToken)
+  await ensureOk(res)
   clearCache()
 
   return res.json()
@@ -140,7 +143,7 @@ export async function apiPatch(path: string, body: any, token?: string) {
     body: JSON.stringify(body),
   })
 
-  await ensureOk(res, !!currentToken)
+  await ensureOk(res)
   clearCache()
 
   return res.json()
@@ -156,7 +159,7 @@ export async function apiDelete(path: string, token?: string) {
       : {},
   })
 
-  await ensureOk(res, !!currentToken)
+  await ensureOk(res)
   clearCache()
 
   return res.json()

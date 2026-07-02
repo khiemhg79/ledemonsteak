@@ -5,7 +5,7 @@ import { useEffect, useState } from "react"
 import CartDrawer from "@/components/cart/CartDrawer"
 import OrderStatus from "@/components/order/OrderStatus"
 import VoucherList, { Voucher } from "@/components/promotions/VoucherList"
-import { apiGet, apiPost } from "@/lib/api"
+import { ApiError, apiGet, apiPost } from "@/lib/api"
 import { subscribeRealtime } from "@/lib/realtime"
 import { useAuth } from "@/store/auth"
 import { useCart } from "@/store/cart"
@@ -94,10 +94,25 @@ export default function OrderPage() {
     setMessage("")
     setPaying(true)
     try {
-      const updated = await apiPost(`/api/orders/${order.id}/checkout`, { promoCode: promoCode || order.promoCode || undefined })
+      const selectedPromo = promoCode || order.promoCode || ""
+      let updated: any
+      let notice = ""
+      try {
+        updated = await apiPost(`/api/orders/${order.id}/checkout`, { promoCode: selectedPromo || undefined })
+      } catch (error) {
+        if (selectedPromo && error instanceof ApiError && (error.status === 401 || error.status === 403)) {
+          setPromoCode("")
+          setDiscount(0)
+          updated = await apiPost(`/api/orders/${order.id}/checkout`, {})
+          notice = "Da gui yeu cau thanh toan. Ma giam gia khong duoc ap dung do phien dang nhap khong hop le."
+        } else {
+          throw error
+        }
+      }
       setDiscount(updated.discount ?? discount)
       setPreviewTotal(updated.finalAmount)
       setMessage(`Đã gửi yêu cầu thanh toán. Nhân viên sẽ tới xác nhận đơn ${money(updated.finalAmount)}.`)
+      if (notice) setMessage(notice)
       setSuccessOpen(true)
       await loadOrders(false, true)
     } catch (error: any) {

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import VoucherList, { Voucher } from "@/components/promotions/VoucherList"
-import { apiGet, apiPost } from "@/lib/api"
+import { ApiError, apiGet, apiPost } from "@/lib/api"
 import { subscribeRealtime } from "@/lib/realtime"
 import { useAuth } from "@/store/auth"
 import { useCart } from "@/store/cart"
@@ -67,6 +67,21 @@ export default function CartDrawer() {
     setFinalAmount(null)
   }
 
+  function orderPayload(code?: string) {
+    return {
+      tableId,
+      qrToken,
+      userId: user?.id,
+      promoCode: code || undefined,
+      items: items.map((item) => ({
+        itemId: item.type === "dish" ? item.id : undefined,
+        comboId: item.type === "combo" ? item.id : undefined,
+        quantity: item.quantity,
+        price: item.price,
+      })),
+    }
+  }
+
   async function submitOrder() {
     setMessage("")
     setSuccessOrder(null)
@@ -80,21 +95,21 @@ export default function CartDrawer() {
     try {
       if (!tableId || !qrToken) throw new Error("Bạn cần quét mã QR còn hiệu lực tại bàn trước khi đặt món.")
 
-      const order = await apiPost("/api/orders", {
-        tableId,
-        qrToken,
-        userId: user?.id,
-        promoCode: promoCode || undefined,
-        items: items.map((item) => ({
-          itemId: item.type === "dish" ? item.id : undefined,
-          comboId: item.type === "combo" ? item.id : undefined,
-          quantity: item.quantity,
-          price: item.price,
-        })),
-      })
+      let order: any
+      let notice = ""
+      try {
+        order = await apiPost("/api/orders", orderPayload(promoCode))
+      } catch (error) {
+        if (promoCode && error instanceof ApiError && (error.status === 401 || error.status === 403)) {
+          order = await apiPost("/api/orders", orderPayload())
+          notice = "Da tao don. Ma giam gia khong duoc ap dung do phien dang nhap khong hop le."
+        } else {
+          throw error
+        }
+      }
       clearAll()
       setPromoOpen(false)
-      setMessage("")
+      setMessage(notice)
       setSuccessOrder(order)
       window.dispatchEvent(new CustomEvent("lemonde:orders-changed", { detail: order }))
     } catch (error: any) {

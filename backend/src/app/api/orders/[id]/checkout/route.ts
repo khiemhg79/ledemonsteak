@@ -49,72 +49,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       }
 
       const paidAt = new Date()
-      const { paidInvoice, payment, completedOrder } = await prisma.$transaction(async (tx) => {
-        const existingInvoice = await tx.invoice.findFirst({ where: { orderId: order.id }, select: { id: true } })
-        const invoice = existingInvoice
-          ? await tx.invoice.update({
-            where: { id: existingInvoice.id },
-            data: {
-              customerId: order.customerId,
-              tableId: order.tableId,
-              subtotal: order.totalAmount,
-              total: order.finalAmount,
-            },
-            select: { id: true },
-          })
-          : await tx.invoice.create({
-            data: {
-              invoiceCode: `INV-${order.id.slice(-8).toUpperCase()}`,
-              orderId: order.id,
-              customerId: order.customerId,
-              tableId: order.tableId,
-              subtotal: order.totalAmount,
-              total: order.finalAmount,
-            },
-            select: { id: true },
-          })
-
-        const paidInvoice = await tx.invoice.update({
-          where: { id: invoice.id },
-          data: { status: "PAID", paidAt, paymentMethod: selectedMethod },
-          select: {
-            id: true,
-            invoiceCode: true,
-            subtotal: true,
-            taxAmount: true,
-            total: true,
-            paymentMethod: true,
-            status: true,
-            paidAt: true,
-            issuedAt: true,
-            updatedAt: true,
-          },
-        })
-        const payment = await tx.payment.create({
-          data: {
-            invoiceId: invoice.id,
-            orderId: order.id,
-            method: selectedMethod,
-            amount: paidAmount,
-            paidAmount,
-            changeAmount: paidAmount - order.finalAmount,
-            status: "SUCCESS",
-            paidAt,
-          },
-          select: {
-            id: true,
-            invoiceId: true,
-            orderId: true,
-            method: true,
-            amount: true,
-            paidAmount: true,
-            changeAmount: true,
-            status: true,
-            paidAt: true,
-            createdAt: true,
-            updatedAt: true,
-          },
-        })
+      const completedOrder = await prisma.$transaction(async (tx) => {
         await tx.table.update({ where: { id: order.tableId! }, data: { status: "EMPTY" } })
         await tx.order.update({ where: { id: params.id }, data: { status: "COMPLETED" } })
 
@@ -138,7 +73,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           }
         }
 
-        const completedOrder = await tx.order.findUnique({
+        return tx.order.findUnique({
           where: { id: params.id },
           select: {
             id: true,
@@ -178,13 +113,109 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
             },
           },
         })
-
-        return { paidInvoice, payment, completedOrder }
       })
 
+      let paidInvoice: any = null
+      let payment: any = null
+      try {
+        const existingInvoice = await prisma.invoice.findFirst({ where: { orderId: order.id }, select: { id: true } })
+        const invoice = existingInvoice
+          ? await prisma.invoice.update({
+            where: { id: existingInvoice.id },
+            data: {
+              customerId: order.customerId,
+              tableId: order.tableId,
+              subtotal: order.totalAmount,
+              total: order.finalAmount,
+            },
+            select: { id: true },
+          })
+          : await prisma.invoice.create({
+            data: {
+              invoiceCode: `INV-${order.id.slice(-8).toUpperCase()}`,
+              orderId: order.id,
+              customerId: order.customerId,
+              tableId: order.tableId,
+              subtotal: order.totalAmount,
+              total: order.finalAmount,
+            },
+            select: { id: true },
+          })
+
+        paidInvoice = await prisma.invoice.update({
+          where: { id: invoice.id },
+          data: { status: "PAID", paidAt, paymentMethod: selectedMethod },
+          select: {
+            id: true,
+            invoiceCode: true,
+            subtotal: true,
+            taxAmount: true,
+            total: true,
+            paymentMethod: true,
+            status: true,
+            paidAt: true,
+            issuedAt: true,
+            updatedAt: true,
+          },
+        })
+        payment = await prisma.payment.create({
+          data: {
+            invoiceId: invoice.id,
+            orderId: order.id,
+            method: selectedMethod,
+            amount: paidAmount,
+            paidAmount,
+            changeAmount: paidAmount - order.finalAmount,
+            status: "SUCCESS",
+            paidAt,
+          },
+          select: {
+            id: true,
+            invoiceId: true,
+            orderId: true,
+            method: true,
+            amount: true,
+            paidAmount: true,
+            changeAmount: true,
+            status: true,
+            paidAt: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        })
+      } catch (error) {
+        console.error("Persist payment artifacts failed", error)
+      }
+
       return NextResponse.json({
-        invoice: { ...paidInvoice, discount: order.discount },
-        payment,
+        invoice: paidInvoice
+          ? { ...paidInvoice, discount: order.discount }
+          : {
+            id: null,
+            invoiceCode: `INV-${order.id.slice(-8).toUpperCase()}`,
+            subtotal: order.totalAmount,
+            taxAmount: order.taxAmount,
+            total: order.finalAmount,
+            paymentMethod: selectedMethod,
+            status: "PAID",
+            paidAt,
+            issuedAt: paidAt,
+            updatedAt: paidAt,
+            discount: order.discount,
+          },
+        payment: payment ?? {
+          id: null,
+          invoiceId: null,
+          orderId: order.id,
+          method: selectedMethod,
+          amount: paidAmount,
+          paidAmount,
+          changeAmount: paidAmount - order.finalAmount,
+          status: "SUCCESS",
+          paidAt,
+          createdAt: paidAt,
+          updatedAt: paidAt,
+        },
         order: completedOrder ? attachOrderItems(completedOrder) : null,
         receivedAmount: paidAmount,
         changeAmount: paidAmount - order.finalAmount,
@@ -216,9 +247,13 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         data: { discount, finalAmount, promoCode: appliedPromoCode },
       })
 
-      const existingInvoice = await tx.invoice.findFirst({ where: { orderId: order.id }, select: { id: true } })
+      return updated
+    })
+
+    try {
+      const existingInvoice = await prisma.invoice.findFirst({ where: { orderId: order.id }, select: { id: true } })
       if (existingInvoice) {
-        await tx.invoice.update({
+        await prisma.invoice.update({
           where: { id: existingInvoice.id },
           data: {
             customerId: order.customerId,
@@ -230,7 +265,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           select: { id: true },
         })
       } else {
-        await tx.invoice.create({
+        await prisma.invoice.create({
           data: {
             invoiceCode: `INV-${order.id.slice(-8).toUpperCase()}`,
             orderId: order.id,
@@ -243,9 +278,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           select: { id: true },
         })
       }
-
-      return updated
-    })
+    } catch (error) {
+      console.error("Create unpaid invoice failed", error)
+    }
 
     return NextResponse.json(updated, { headers: corsHeaders() })
   } catch (error) {
