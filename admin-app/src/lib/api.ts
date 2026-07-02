@@ -59,12 +59,7 @@ function authToken(token?: string) {
 const responseCache = new Map<string, { expiresAt: number; data: any }>()
 const inflightGets = new Map<string, Promise<any>>()
 
-function cacheDuration(path: string) {
-  if (path === "/api/admin/reports") return 10_000
-  if (path === "/api/menu") return 5_000
-  if (path === "/api/admin/users") return 5_000
-  if (path === "/api/promotions") return 5_000
-  if (path === "/api/tables") return 5_000
+function cacheDuration(_path: string) {
   return 0
 }
 

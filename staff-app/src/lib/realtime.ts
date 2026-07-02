@@ -6,8 +6,8 @@ const tableScopes: Record<string, string[]> = {
   admin: ["categories", "items", "combos", "comboitems", "orders", "orderdetails", "invoices", "payments", "promotions", "customerpromotions", "tables", "users", "customers", "roles"],
 }
 
-const REALTIME_REFRESH_DEBOUNCE_MS = 120
-const FAST_POLL_MS = 1800
+const REALTIME_REFRESH_DEBOUNCE_MS = 40
+const FAST_POLL_MS = 900
 
 let sharedClient: ReturnType<typeof createClient> | null = null
 

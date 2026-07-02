@@ -26,6 +26,7 @@ const orderDetailSelect = {
 export async function POST(req: NextRequest) {
   try {
     const { tableId, userId, items, promoCode, qrToken } = await req.json()
+    const requestedUserId = typeof userId === "string" && userId.trim() ? userId.trim() : null
     if (!tableId || !Array.isArray(items) || items.length === 0) {
       return NextResponse.json({ error: "Ban va danh sach mon la bat buoc." }, { status: 400, headers: corsHeaders() })
     }
@@ -47,12 +48,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Du lieu mon an khong hop le." }, { status: 400, headers: corsHeaders() })
     }
 
-    const [table, menuItems, combos, customer] = await Promise.all([
+    const [table, menuItems, combos, account] = await Promise.all([
       prisma.table.findUnique({ where: { id: tableId } }),
       prisma.item.findMany({ where: { id: { in: normalizedItems.flatMap((item: any) => item.itemId ? [item.itemId] : []) }, isActive: true } }),
       prisma.combo.findMany({ where: { id: { in: normalizedItems.flatMap((item: any) => item.comboId ? [item.comboId] : []) }, isActive: true } }),
-      userId ? prisma.customer.findUnique({ where: { userId } }) : Promise.resolve(null),
+      requestedUserId ? prisma.user.findUnique({
+        where: { id: requestedUserId },
+        select: {
+          id: true,
+          isActive: true,
+          customer: { select: { id: true } },
+        },
+      }) : Promise.resolve(null),
     ])
+    const safeUser = account?.isActive ? account : null
+    const safeUserId = safeUser?.id ?? null
+    const safeCustomerId = safeUser?.customer?.id ?? null
+
     if (!table || !table.isActive) {
       return NextResponse.json({ error: "Ban khong ton tai hoac da ngung hoat dong." }, { status: 404, headers: corsHeaders() })
     }
@@ -87,34 +99,53 @@ export async function POST(req: NextRequest) {
     if (promoCode) {
       const auth = authorize(req, ["CUSTOMER"])
       if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status, headers: corsHeaders() })
-      if (userId && auth.user.id !== userId) return NextResponse.json({ error: "Tai khoan khong khop voi nguoi dat mon." }, { status: 403, headers: corsHeaders() })
-      const calculation = await calculatePromotion(promoCode, totalAmount, customer?.id)
+      if (requestedUserId && auth.user.id !== requestedUserId) return NextResponse.json({ error: "Tai khoan khong khop voi nguoi dat mon." }, { status: 403, headers: corsHeaders() })
+      if (!safeUserId || auth.user.id !== safeUserId) {
+        return NextResponse.json({ error: "Tai khoan khong con hop le. Vui long dang nhap lai de su dung ma giam gia." }, { status: 401, headers: corsHeaders() })
+      }
+      const calculation = await calculatePromotion(promoCode, totalAmount, safeCustomerId)
       discount = calculation.discount
       finalAmount = calculation.finalAmount
       appliedPromoCode = calculation.promo.id
     }
 
     const order = await prisma.$transaction(async (tx) => {
+      const latestOrder = await tx.order.findFirst({
+        select: { orderNumber: true },
+        orderBy: { orderNumber: "desc" },
+      })
+      const orderNumber = (latestOrder?.orderNumber ?? 0) + 1
       const created = await tx.order.create({
         data: {
+          orderNumber,
           tableId,
-          userId: userId ?? null,
-          customerId: customer?.id ?? null,
+          userId: safeUserId,
+          customerId: safeCustomerId,
+          status: "PENDING",
           totalAmount,
+          taxAmount: 0,
+          serviceCharge: 0,
           discount,
           finalAmount,
           promoCode: appliedPromoCode,
           customerNotes: packOrderLines(orderLines),
-          orderDetails: {
-            create: orderLines.map((line) => ({
-              itemId: line.itemId,
-              comboId: line.comboId,
-              quantity: line.quantity,
-              price: line.price,
-              status: line.status,
-            })),
-          },
         },
+        select: { id: true },
+      })
+      await tx.orderDetail.createMany({
+        data: orderLines.map((line) => ({
+          id: line.id,
+          orderId: created.id,
+          itemId: line.itemId,
+          comboId: line.comboId,
+          quantity: line.quantity,
+          price: line.price,
+          status: line.status,
+        })),
+      })
+      await tx.table.updateMany({ where: { id: tableId }, data: { status: "OCCUPIED" } })
+      const withDetails = await tx.order.findUnique({
+        where: { id: created.id },
         select: {
           id: true,
           orderNumber: true,
@@ -136,8 +167,8 @@ export async function POST(req: NextRequest) {
           },
         },
       })
-      await tx.table.update({ where: { id: tableId }, data: { status: "OCCUPIED" } })
-      return created
+      if (!withDetails) throw new Error("Created order not found")
+      return withDetails
     })
     return NextResponse.json(attachOrderItems(order), { status: 201, headers: corsHeaders() })
   } catch (error) {

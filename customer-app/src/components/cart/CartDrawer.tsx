@@ -76,6 +76,7 @@ export default function CartDrawer() {
     }
 
     setLoading(true)
+    setMessage("Dang gui don...")
     try {
       if (!tableId || !qrToken) throw new Error("Bạn cần quét mã QR còn hiệu lực tại bàn trước khi đặt món.")
 
@@ -92,7 +93,10 @@ export default function CartDrawer() {
         })),
       })
       clearAll()
+      setPromoOpen(false)
+      setMessage("")
       setSuccessOrder(order)
+      window.dispatchEvent(new CustomEvent("lemonde:orders-changed", { detail: order }))
     } catch (error: any) {
       setMessage(error.message || "Không thể tạo đơn.")
     } finally {

@@ -35,26 +35,32 @@ function tableNumber(number: string) {
 export default function TableGrid({ tables, activeOrderTableIds, onSelect, onStatusChange }: TableGridProps) {
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-      {tables.map((table) => (
-        <article key={table.id} className={`rounded-md border-2 p-4 text-center shadow-sm ${statusCard[table.status as TableStatus] ?? "border-gray-200 bg-white"}`}>
-          <button className="block w-full" onClick={() => onSelect(table)}>
+      {tables.map((table) => {
+        const rawStatus = table.status as TableStatus
+        const hasOrder = activeOrderTableIds.has(table.id)
+        const effectiveStatus: TableStatus = rawStatus === "EMPTY" && hasOrder ? "OCCUPIED" : rawStatus
+        const effectiveTable = effectiveStatus === rawStatus ? table : { ...table, status: effectiveStatus }
+
+        return (
+        <article key={table.id} className={`rounded-md border-2 p-4 text-center shadow-sm ${statusCard[effectiveStatus] ?? "border-gray-200 bg-white"}`}>
+          <button className="block w-full" onClick={() => onSelect(effectiveTable)}>
             <h3 className="text-xl font-black text-[#1F1F1F]">Bàn {tableNumber(table.number)}</h3>
             <p className="mt-2 text-sm text-[#333]">{table.capacity} chỗ ngồi</p>
-            <span className="mt-2 inline-block rounded-full bg-white px-4 py-1 text-xs font-bold text-[#333]">{statusLabel[table.status as TableStatus] ?? table.status}</span>
+            <span className="mt-2 inline-block rounded-full bg-white px-4 py-1 text-xs font-bold text-[#333]">{statusLabel[effectiveStatus] ?? effectiveStatus}</span>
           </button>
           <select
             className="mt-4 h-9 w-full rounded-sm border border-[#555]/50 bg-white/55 px-2 text-sm outline-none"
-            value={table.status}
+            value={effectiveStatus}
             onChange={(e) => onStatusChange(table.id, e.target.value as TableStatus)}
           >
             {statusOptions.map((option) => {
-              const hasOrder = activeOrderTableIds.has(table.id)
-              const disabled = option.value === "EMPTY" ? hasOrder : !hasOrder && option.value !== table.status
+              const disabled = option.value === "EMPTY" ? hasOrder : !hasOrder && option.value !== effectiveStatus
               return <option key={option.value} value={option.value} disabled={disabled}>{option.label}</option>
             })}
           </select>
         </article>
-      ))}
+        )
+      })}
     </div>
   )
 }
