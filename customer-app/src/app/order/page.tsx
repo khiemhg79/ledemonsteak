@@ -16,6 +16,7 @@ export default function OrderPage() {
   const tableId = useCart((s) => s.tableId)
   const hydrateCart = useCart((s) => s.hydrate)
   const user = useAuth((s) => s.user)
+  const token = useAuth((s) => s.token)
   const logout = useAuth((s) => s.logout)
   const hydrateAuth = useAuth((s) => s.hydrate)
   const [orders, setOrders] = useState<any[]>([])
@@ -37,7 +38,7 @@ export default function OrderPage() {
     if (clearMessage) setMessage("")
     try {
       const query = tableId ? `?tableId=${tableId}` : ""
-      setOrders(await apiGet(`/api/orders${query}`, undefined, { force }))
+      setOrders(await apiGet(`/api/orders${query}`, token ?? undefined, { force, timeoutMs: 60_000 }))
     } catch (error: any) {
       if (!silent) setMessage(error.message || "Không tải được đơn hiện tại.")
     } finally {
@@ -55,12 +56,12 @@ export default function OrderPage() {
     const unsubscribe = subscribeRealtime("customer", () => {
       if (document.visibilityState === "visible") loadOrders(false, true, true)
     })
-    if (user) apiGet("/api/promotions").then(setPromos).catch(() => setPromos([]))
+    if (user) apiGet("/api/promotions", token ?? undefined, { timeoutMs: 60_000 }).then(setPromos).catch(() => setPromos([]))
     else setPromos([])
     return () => {
       unsubscribe()
     }
-  }, [tableId, user?.id])
+  }, [tableId, user?.id, token])
 
   useEffect(() => {
     if (!order) return
@@ -77,7 +78,7 @@ export default function OrderPage() {
     setMessage("")
     setApplyingCode(code)
     try {
-      const result = await apiPost("/api/promotions/apply", { code, orderAmount: order.totalAmount })
+      const result = await apiPost("/api/promotions/apply", { code, orderAmount: order.totalAmount }, token ?? undefined, { timeoutMs: 60_000 })
       setPromoCode(code)
       setDiscount(result.discount ?? 0)
       setPreviewTotal(result.finalAmount ?? order.totalAmount)
@@ -98,12 +99,12 @@ export default function OrderPage() {
       let updated: any
       let notice = ""
       try {
-        updated = await apiPost(`/api/orders/${order.id}/checkout`, { promoCode: selectedPromo || undefined })
+        updated = await apiPost(`/api/orders/${order.id}/checkout`, { promoCode: selectedPromo || undefined }, token ?? undefined, { timeoutMs: 60_000 })
       } catch (error) {
         if (selectedPromo && error instanceof ApiError && (error.status === 401 || error.status === 403)) {
           setPromoCode("")
           setDiscount(0)
-          updated = await apiPost(`/api/orders/${order.id}/checkout`, {})
+          updated = await apiPost(`/api/orders/${order.id}/checkout`, {}, token ?? undefined, { timeoutMs: 60_000 })
           notice = "Da gui yeu cau thanh toan. Ma giam gia khong duoc ap dung do phien dang nhap khong hop le."
         } else {
           throw error
@@ -114,6 +115,8 @@ export default function OrderPage() {
       setMessage(`Đã gửi yêu cầu thanh toán. Nhân viên sẽ tới xác nhận đơn ${money(updated.finalAmount)}.`)
       if (notice) setMessage(notice)
       setSuccessOpen(true)
+      window.dispatchEvent(new CustomEvent("lemonde:orders-changed", { detail: updated }))
+      window.dispatchEvent(new CustomEvent("lemonde:tables-changed", { detail: { tableId: order.tableId, status: "REQUESTING_BILL", order: updated } }))
       await loadOrders(false, true)
     } catch (error: any) {
       setMessage(error.message || "Không gửi được yêu cầu thanh toán.")

@@ -30,15 +30,17 @@ async function ensureOk(res: Response) {
   throw new ApiError(error, res.status)
 }
 
-const REQUEST_TIMEOUT_MS = 20_000
+const REQUEST_TIMEOUT_MS = 60_000
+type RequestOptions = RequestInit & { timeoutMs?: number }
 
-async function request(input: RequestInfo | URL, init?: RequestInit) {
+async function request(input: RequestInfo | URL, init?: RequestOptions) {
   const controller = new AbortController()
-  const timeout = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+  const { timeoutMs, ...requestInit } = init ?? {}
+  const timeout = window.setTimeout(() => controller.abort(), timeoutMs ?? REQUEST_TIMEOUT_MS)
 
   try {
     return await fetch(input, {
-      ...init,
+      ...requestInit,
       signal: controller.signal,
     })
   } catch (error) {
@@ -73,7 +75,7 @@ function clearCache() {
 export async function apiGet(
   path: string,
   token?: string,
-  options?: { force?: boolean }
+  options?: { force?: boolean; timeoutMs?: number }
 ) {
   const currentToken = authToken(token)
   const cacheKey = `${path}|${currentToken ?? "guest"}`
@@ -89,6 +91,7 @@ export async function apiGet(
 
   const promise = request(`${apiBase()}${path}`, {
     cache: maxAge ? "default" : "no-store",
+    timeoutMs: options?.timeoutMs,
     headers: currentToken
       ? { Authorization: `Bearer ${currentToken}` }
       : {},
@@ -113,11 +116,12 @@ export async function apiGet(
   return promise
 }
 
-export async function apiPost(path: string, body: any, token?: string) {
+export async function apiPost(path: string, body: any, token?: string, options?: { timeoutMs?: number }) {
   const currentToken = authToken(token)
 
   const res = await request(`${apiBase()}${path}`, {
     method: "POST",
+    timeoutMs: options?.timeoutMs,
     headers: {
       "Content-Type": "application/json",
       ...(currentToken ? { Authorization: `Bearer ${currentToken}` } : {}),

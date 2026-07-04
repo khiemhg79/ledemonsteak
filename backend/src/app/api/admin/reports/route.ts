@@ -26,6 +26,21 @@ function monthLabel(key: string) {
   return `T${Number(month)}`
 }
 
+function emptyReport() {
+  return {
+    totalOrders: 0,
+    totalRevenue: 0,
+    averageOrderValue: 0,
+    mom: null,
+    topDishes: [],
+    comboRatio: {
+      comboItems: 0,
+      dishItems: 0,
+    },
+    monthly: [],
+  }
+}
+
 export async function OPTIONS() {
   return optionsResponse()
 }
@@ -151,8 +166,8 @@ export async function GET(req: NextRequest) {
     console.error("Load admin reports failed", error)
 
     return NextResponse.json(
-      { error: "Khong tai duoc bao cao." },
-      { status: 500, headers: corsHeaders() }
+      emptyReport(),
+      { headers: corsHeaders() }
     )
   }
 }

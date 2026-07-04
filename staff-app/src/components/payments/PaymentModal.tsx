@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import { apiPost } from "@/lib/api"
+import { useAuth } from "@/store/auth"
 
 type PaymentMethod = "CASH" | "BANK_TRANSFER" | "CARD" | "E_WALLET"
 const labels: Record<PaymentMethod, string> = { CASH: "Tiền mặt", BANK_TRANSFER: "Chuyển khoản", CARD: "Thẻ ngân hàng", E_WALLET: "Ví điện tử / MoMo" }
@@ -14,6 +15,7 @@ export default function PaymentModal({ order, onClose, onComplete }: { order: an
   const [error, setError] = useState("")
   const [receipt, setReceipt] = useState<any | null>(null)
   const receiptRef = useRef<HTMLDivElement>(null)
+  const token = useAuth((s) => s.token)
 
   useEffect(() => {
     if (!order) return
@@ -32,8 +34,11 @@ export default function PaymentModal({ order, onClose, onComplete }: { order: an
     if (receivedNumber < order.finalAmount) { setError(`Số tiền nhận phải lớn hơn hoặc bằng tổng tiền hóa đơn ${money(order.finalAmount)}.`); return }
     setBusy(true); setError("")
     try {
-      const result = await apiPost(`/api/orders/${order.id}/checkout`, { complete: true, paymentMethod: method, receivedAmount: Number(received) }, undefined, { timeoutMs: 30_000 })
+      if (!token) throw new Error("Phien dang nhap nhan vien khong hop le. Vui long dang nhap lai.")
+      const result = await apiPost(`/api/orders/${order.id}/checkout`, { complete: true, paymentMethod: method, receivedAmount: Number(received) }, token, { timeoutMs: 60_000 })
       setReceipt(result)
+      window.dispatchEvent(new CustomEvent("lemonde:orders-changed", { detail: result.order }))
+      window.dispatchEvent(new CustomEvent("lemonde:tables-changed", { detail: result.order?.table ?? { id: order.tableId, status: "EMPTY" } }))
     } catch (err) { setError(err instanceof Error ? err.message : "Không xác nhận được thanh toán.") } finally { setBusy(false) }
   }
 

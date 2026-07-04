@@ -27,15 +27,17 @@ async function ensureOk(res: Response, hadToken: boolean) {
   throw new Error(error)
 }
 
-const REQUEST_TIMEOUT_MS = 20_000
+const REQUEST_TIMEOUT_MS = 60_000
+type RequestOptions = RequestInit & { timeoutMs?: number }
 
-async function request(input: RequestInfo | URL, init?: RequestInit) {
+async function request(input: RequestInfo | URL, init?: RequestOptions) {
   const controller = new AbortController()
-  const timeout = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+  const { timeoutMs, ...requestInit } = init ?? {}
+  const timeout = window.setTimeout(() => controller.abort(), timeoutMs ?? REQUEST_TIMEOUT_MS)
 
   try {
     return await fetch(input, {
-      ...init,
+      ...requestInit,
       signal: controller.signal,
     })
   } catch (error) {
@@ -70,7 +72,7 @@ function clearCache() {
 export async function apiGet(
   path: string,
   token?: string,
-  options?: { force?: boolean }
+  options?: { force?: boolean; timeoutMs?: number }
 ) {
   const currentToken = authToken(token)
   const cacheKey = `${path}|${currentToken ?? "guest"}`
@@ -89,6 +91,7 @@ export async function apiGet(
     headers: currentToken
       ? { Authorization: `Bearer ${currentToken}` }
       : {},
+    timeoutMs: options?.timeoutMs,
   })
     .then(async (res) => {
       await ensureOk(res, !!currentToken)
@@ -110,7 +113,7 @@ export async function apiGet(
   return promise
 }
 
-export async function apiPost(path: string, body: any, token?: string) {
+export async function apiPost(path: string, body: any, token?: string, options?: { timeoutMs?: number }) {
   const currentToken = authToken(token)
 
   const res = await request(`${apiBase()}${path}`, {
@@ -120,6 +123,7 @@ export async function apiPost(path: string, body: any, token?: string) {
       ...(currentToken ? { Authorization: `Bearer ${currentToken}` } : {}),
     },
     body: JSON.stringify(body),
+    timeoutMs: options?.timeoutMs,
   })
 
   await ensureOk(res, !!currentToken)
@@ -128,7 +132,7 @@ export async function apiPost(path: string, body: any, token?: string) {
   return res.json()
 }
 
-export async function apiPatch(path: string, body: any, token?: string) {
+export async function apiPatch(path: string, body: any, token?: string, options?: { timeoutMs?: number }) {
   const currentToken = authToken(token)
 
   const res = await request(`${apiBase()}${path}`, {
@@ -138,6 +142,7 @@ export async function apiPatch(path: string, body: any, token?: string) {
       ...(currentToken ? { Authorization: `Bearer ${currentToken}` } : {}),
     },
     body: JSON.stringify(body),
+    timeoutMs: options?.timeoutMs,
   })
 
   await ensureOk(res, !!currentToken)
@@ -146,7 +151,7 @@ export async function apiPatch(path: string, body: any, token?: string) {
   return res.json()
 }
 
-export async function apiDelete(path: string, token?: string) {
+export async function apiDelete(path: string, token?: string, options?: { timeoutMs?: number }) {
   const currentToken = authToken(token)
 
   const res = await request(`${apiBase()}${path}`, {
@@ -154,6 +159,7 @@ export async function apiDelete(path: string, token?: string) {
     headers: currentToken
       ? { Authorization: `Bearer ${currentToken}` }
       : {},
+    timeoutMs: options?.timeoutMs,
   })
 
   await ensureOk(res, !!currentToken)

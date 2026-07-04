@@ -18,7 +18,7 @@ function authToken(token?: string) {
   return typeof window !== "undefined" ? localStorage.getItem("token") ?? undefined : undefined
 }
 
-const REQUEST_TIMEOUT_MS = 20_000
+const REQUEST_TIMEOUT_MS = 60_000
 type RequestOptions = RequestInit & { timeoutMs?: number }
 
 async function request(input: RequestInfo | URL, init?: RequestOptions) {
@@ -58,7 +58,7 @@ function handleUnauthorized(res: Response, path: string) {
   window.location.assign("/login")
 }
 
-export async function apiGet(path: string, token?: string, options?: { force?: boolean }) {
+export async function apiGet(path: string, token?: string, options?: { force?: boolean; timeoutMs?: number }) {
   const currentToken = authToken(token)
   const cacheKey = `${path}|${currentToken ?? "guest"}`
   const maxAge = cacheDuration(path)
@@ -71,6 +71,7 @@ export async function apiGet(path: string, token?: string, options?: { force?: b
   const promise = request(`${apiBase()}${path}`, {
     cache: maxAge ? "default" : "no-store",
     headers: currentToken ? { Authorization: `Bearer ${currentToken}` } : {},
+    timeoutMs: options?.timeoutMs,
   }).then(async (res) => {
     handleUnauthorized(res, path)
     if (!res.ok) throw new Error(await readError(res))
@@ -92,18 +93,18 @@ export async function apiPost(path: string, body: any, token?: string, options?:
   return res.json()
 }
 
-export async function apiPatch(path: string, body: any, token?: string) {
+export async function apiPatch(path: string, body: any, token?: string, options?: { timeoutMs?: number }) {
   const currentToken = authToken(token)
-  const res = await request(`${apiBase()}${path}`, { method: "PATCH", headers: { "Content-Type": "application/json", ...(currentToken ? { Authorization: `Bearer ${currentToken}` } : {}) }, body: JSON.stringify(body) })
+  const res = await request(`${apiBase()}${path}`, { method: "PATCH", headers: { "Content-Type": "application/json", ...(currentToken ? { Authorization: `Bearer ${currentToken}` } : {}) }, body: JSON.stringify(body), timeoutMs: options?.timeoutMs })
   handleUnauthorized(res, path)
   if (!res.ok) throw new Error(await readError(res))
   clearCache()
   return res.json()
 }
 
-export async function apiDelete(path: string, token?: string) {
+export async function apiDelete(path: string, token?: string, options?: { timeoutMs?: number }) {
   const currentToken = authToken(token)
-  const res = await request(`${apiBase()}${path}`, { method: "DELETE", headers: currentToken ? { Authorization: `Bearer ${currentToken}` } : {} })
+  const res = await request(`${apiBase()}${path}`, { method: "DELETE", headers: currentToken ? { Authorization: `Bearer ${currentToken}` } : {}, timeoutMs: options?.timeoutMs })
   handleUnauthorized(res, path)
   if (!res.ok) throw new Error(await readError(res))
   clearCache()

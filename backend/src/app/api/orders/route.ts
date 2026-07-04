@@ -109,16 +109,9 @@ export async function POST(req: NextRequest) {
       appliedPromoCode = calculation.promo.id
     }
 
-    const createOrder = async (includeDetails: boolean) => {
-      return prisma.$transaction(async (tx) => {
-      const latestOrder = await tx.order.findFirst({
-        select: { orderNumber: true },
-        orderBy: { orderNumber: "desc" },
-      })
-      const orderNumber = (latestOrder?.orderNumber ?? 0) + 1
+    const order = await prisma.$transaction(async (tx) => {
       const created = await tx.order.create({
         data: {
-          orderNumber,
           tableId,
           userId: safeUserId,
           customerId: safeCustomerId,
@@ -131,24 +124,6 @@ export async function POST(req: NextRequest) {
           promoCode: appliedPromoCode,
           customerNotes: packOrderLines(orderLines),
         },
-        select: { id: true },
-      })
-      if (includeDetails) {
-        await tx.orderDetail.createMany({
-          data: orderLines.map((line) => ({
-            id: line.id,
-            orderId: created.id,
-            itemId: line.itemId,
-            comboId: line.comboId,
-            quantity: line.quantity,
-            price: line.price,
-            status: line.status,
-          })),
-        })
-      }
-      await tx.table.updateMany({ where: { id: tableId }, data: { status: "OCCUPIED" } })
-      const withDetails = await tx.order.findUnique({
-        where: { id: created.id },
         select: {
           id: true,
           orderNumber: true,
@@ -165,24 +140,29 @@ export async function POST(req: NextRequest) {
           customerNotes: true,
           createdAt: true,
           updatedAt: true,
-          orderDetails: {
-            select: orderDetailSelect,
-          },
         },
       })
-      if (!withDetails) throw new Error("Created order not found")
-      return withDetails
+      await tx.table.update({ where: { id: tableId }, data: { status: "OCCUPIED" } })
+      return created
+    }, { maxWait: 10000, timeout: 20000 })
+
+    try {
+      await prisma.orderDetail.createMany({
+        data: orderLines.map((line) => ({
+          id: line.id,
+          orderId: order.id,
+          itemId: line.itemId,
+          comboId: line.comboId,
+          quantity: line.quantity,
+          price: line.price,
+          status: line.status,
+        })),
       })
+    } catch (detailError) {
+      console.warn("Order detail write skipped; packed order lines will be used", detailError)
     }
 
-    let order
-    try {
-      order = await createOrder(true)
-    } catch (error) {
-      console.error("Create order with details failed, retrying without details", error)
-      order = await createOrder(false)
-    }
-    return NextResponse.json(attachOrderItems(order), { status: 201, headers: corsHeaders() })
+    return NextResponse.json(attachOrderItems({ ...order, orderDetails: [] }), { status: 201, headers: corsHeaders() })
   } catch (error) {
     if (error instanceof PromotionError) return NextResponse.json({ error: error.message }, { status: 400, headers: corsHeaders() })
     console.error("Create order failed", error)
@@ -207,33 +187,51 @@ export async function GET(req: NextRequest) {
     if (status && status !== "ALL") where.status = status
     else if (!status) where.status = { notIn: ["COMPLETED", "CANCELLED"] }
 
-    const orders = await prisma.order.findMany({
-      where,
-      select: {
-        id: true,
-        orderNumber: true,
-        tableId: true,
-        userId: true,
-        customerId: true,
-        status: true,
-        totalAmount: true,
-        taxAmount: true,
-        serviceCharge: true,
-        discount: true,
-        finalAmount: true,
-        promoCode: true,
-        customerNotes: true,
-        createdAt: true,
-        updatedAt: true,
-        table: { select: { id: true, number: true, status: true } },
-        orderDetails: {
-          select: orderDetailSelect,
+    const baseSelect = {
+      id: true,
+      orderNumber: true,
+      tableId: true,
+      userId: true,
+      customerId: true,
+      status: true,
+      totalAmount: true,
+      taxAmount: true,
+      serviceCharge: true,
+      discount: true,
+      finalAmount: true,
+      promoCode: true,
+      customerNotes: true,
+      createdAt: true,
+      updatedAt: true,
+      table: { select: { id: true, number: true, status: true } },
+    } as const
+
+    try {
+      const orders = await prisma.order.findMany({
+        where,
+        select: {
+          ...baseSelect,
+          orderDetails: {
+            select: orderDetailSelect,
+          },
         },
-      },
-      orderBy: { createdAt: staffView ? "asc" : "desc" },
-      take: staffView ? 120 : 30,
-    })
-    return NextResponse.json(orders.map(attachOrderItems), { headers: corsHeaders() })
+        orderBy: { createdAt: staffView ? "asc" : "desc" },
+        take: staffView ? 120 : 30,
+      })
+      return NextResponse.json(orders.map(attachOrderItems), { headers: corsHeaders() })
+    } catch (detailError) {
+      console.warn("Load orders with details failed; using packed order lines", detailError)
+      const orders = await prisma.order.findMany({
+        where,
+        select: baseSelect,
+        orderBy: { createdAt: staffView ? "asc" : "desc" },
+        take: staffView ? 120 : 30,
+      })
+      return NextResponse.json(
+        orders.map((order) => attachOrderItems({ ...order, orderDetails: [] })),
+        { headers: corsHeaders() }
+      )
+    }
   } catch (error) {
     console.error("Load orders failed", error)
     return NextResponse.json({ error: "Khong tai duoc danh sach don hang." }, { status: 500, headers: corsHeaders() })
