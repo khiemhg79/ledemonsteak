@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useRef, useState } from "react"
 import { apiPatch } from "@/lib/api"
 
 type OrderCardProps = {
@@ -34,13 +35,38 @@ function tableNumber(number?: string) {
 }
 
 export default function OrderCard({ order, onChanged, onError }: OrderCardProps) {
-  async function updateItem(itemId: string, status: string) {
-    try {
-      await apiPatch(`/api/orders/${order.id}/items`, { itemId, status })
-      onChanged()
-    } catch (error) {
-      onError(error instanceof Error ? error.message : "Không cập nhật được trạng thái món ăn.")
-    }
+  const [items, setItems] = useState<any[]>(order.items ?? [])
+  const itemUpdateQueueRef = useRef<Record<string, Promise<void>>>({})
+
+  useEffect(() => {
+    setItems(order.items ?? [])
+  }, [order.items])
+
+  function patchItemStatus(itemId: string, status: string) {
+    setItems((current) => current.map((item) => item.id === itemId ? { ...item, status } : item))
+  }
+
+  function updateItem(itemId: string, status: string) {
+    patchItemStatus(itemId, status)
+
+    const key = `${order.id}:${itemId}`
+    const previousTask = itemUpdateQueueRef.current[key] ?? Promise.resolve()
+    const task = previousTask
+      .catch(() => undefined)
+      .then(async () => {
+        await apiPatch(`/api/orders/${order.id}/items`, { itemId, status })
+        window.dispatchEvent(new CustomEvent("lemonde:orders-changed", { detail: { orderId: order.id, itemId, status } }))
+        onChanged()
+      })
+      .catch((error) => {
+        onError(error instanceof Error ? error.message : "Không cập nhật được trạng thái món ăn.")
+        onChanged()
+      })
+      .finally(() => {
+        if (itemUpdateQueueRef.current[key] === task) delete itemUpdateQueueRef.current[key]
+      })
+
+    itemUpdateQueueRef.current[key] = task
   }
 
   return (
@@ -50,7 +76,7 @@ export default function OrderCard({ order, onChanged, onError }: OrderCardProps)
       <p className="mt-4 text-sm font-bold text-[#1F2937]">Món ăn:</p>
 
       <div className="mt-2 divide-y divide-[#111]/60">
-        {order.items.map((item: any) => {
+        {items.map((item: any) => {
           const label = item.item?.name ?? item.combo?.name
           const isCombo = !!item.combo
           return (

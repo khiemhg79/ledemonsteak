@@ -38,6 +38,7 @@ export default function OrdersPage() {
   const [error, setError] = useState("")
   const loadingRef = useRef(false)
   const pendingRefreshRef = useRef(false)
+  const itemUpdateQueueRef = useRef<Record<string, Promise<void>>>({})
 
   async function loadOrders(silent = false, force = false) {
     if (loadingRef.current) {
@@ -61,14 +62,38 @@ export default function OrdersPage() {
     }
   }
 
-  async function updateItem(orderId: string, itemId: string, status: string) {
+  function patchItemStatus(orderId: string, itemId: string, status: string) {
+    setOrders((current) => current.map((order) => {
+      if (order.id !== orderId) return order
+      return {
+        ...order,
+        items: order.items.map((item: any) => item.id === itemId ? { ...item, status } : item),
+      }
+    }))
+  }
+
+  function updateItem(orderId: string, itemId: string, status: string) {
     setError("")
-    try {
-      await apiPatch(`/api/orders/${orderId}/items`, { itemId, status })
-      await loadOrders(true, true)
-    } catch (error) {
-      setError(error instanceof Error ? error.message : "Không cập nhật được trạng thái món ăn.")
-    }
+    patchItemStatus(orderId, itemId, status)
+
+    const key = `${orderId}:${itemId}`
+    const previousTask = itemUpdateQueueRef.current[key] ?? Promise.resolve()
+    const task = previousTask
+      .catch(() => undefined)
+      .then(async () => {
+        await apiPatch(`/api/orders/${orderId}/items`, { itemId, status })
+        window.dispatchEvent(new CustomEvent("lemonde:orders-changed", { detail: { orderId, itemId, status } }))
+        void loadOrders(true, true)
+      })
+      .catch((error) => {
+        setError(error instanceof Error ? error.message : "Không cập nhật được trạng thái món ăn.")
+        void loadOrders(true, true)
+      })
+      .finally(() => {
+        if (itemUpdateQueueRef.current[key] === task) delete itemUpdateQueueRef.current[key]
+      })
+
+    itemUpdateQueueRef.current[key] = task
   }
 
   useEffect(() => {
