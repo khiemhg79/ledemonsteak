@@ -1,8 +1,8 @@
 "use client"
 
 import Link from "next/link"
-import { FormEvent, useEffect, useMemo, useState } from "react"
-import CartDrawer from "@/components/cart/CartDrawer"
+import { FormEvent, useEffect, useState } from "react"
+import CustomerBottomNav from "@/components/layout/CustomerBottomNav"
 import { useAuth } from "@/store/auth"
 import { useCart } from "@/store/cart"
 
@@ -17,41 +17,12 @@ type AccountUser = {
 const fieldClass =
   "mt-2 h-12 w-full rounded-xl border border-[#F0D7B0] bg-white px-4 text-sm font-semibold text-[#211715] outline-none transition placeholder:text-[#AFA59E] focus:border-[#F34208] focus:ring-4 focus:ring-[#F34208]/10"
 
-const money = (value: number) => Number(value || 0).toLocaleString("vi-VN") + "đ"
-
 function LogoutIcon() {
   return (
     <svg aria-hidden="true" className="h-5 w-5" viewBox="0 0 24 24" fill="none">
       <path d="M10 7V6C10 4.9 10.9 4 12 4H18C19.1 4 20 4.9 20 6V18C20 19.1 19.1 20 18 20H12C10.9 20 10 19.1 10 18V17" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
       <path d="M14 12H4" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
       <path d="M7 9L4 12L7 15" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  )
-}
-
-function HomeIcon() {
-  return (
-    <svg aria-hidden="true" className="mx-auto h-5 w-5" viewBox="0 0 24 24" fill="none">
-      <path d="M4 11.5L12 5L20 11.5V20H15V14H9V20H4V11.5Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
-    </svg>
-  )
-}
-
-function HistoryIcon() {
-  return (
-    <svg aria-hidden="true" className="mx-auto h-5 w-5" viewBox="0 0 24 24" fill="none">
-      <path d="M5 12A7 7 0 1 0 7.05 7.05" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-      <path d="M5 6V10H9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M12 8V12L15 14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  )
-}
-
-function UserIcon() {
-  return (
-    <svg aria-hidden="true" className="mx-auto h-5 w-5" viewBox="0 0 24 24" fill="none">
-      <path d="M12 12C14.21 12 16 10.21 16 8C16 5.79 14.21 4 12 4C9.79 4 8 5.79 8 8C8 10.21 9.79 12 12 12Z" stroke="currentColor" strokeWidth="2" />
-      <path d="M5 20C5 16.69 8.13 14 12 14C15.87 14 19 16.69 19 20" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
     </svg>
   )
 }
@@ -63,7 +34,6 @@ export default function AccountPage() {
   const login = useAuth((s) => s.login)
   const logout = useAuth((s) => s.logout)
   const hydrateCart = useCart((s) => s.hydrate)
-  const cartTotal = useCart((s) => s.total())
   const [name, setName] = useState("")
   const [phone, setPhone] = useState("")
   const [email, setEmail] = useState("")
@@ -80,8 +50,6 @@ export default function AccountPage() {
     setPhone(user.phone ?? "")
     setEmail(user.email ?? "")
   }, [user])
-
-  const cartBadge = useMemo(() => money(cartTotal), [cartTotal])
 
   function saveProfile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -109,11 +77,7 @@ export default function AccountPage() {
       <header className="sticky top-0 z-20 bg-[linear-gradient(100deg,#F34208,#F08A1A)] px-4 pb-4 pt-4 text-white shadow-lg shadow-[#F34208]/20">
         <div className="flex items-center justify-between">
           <h1 className="text-lg font-black tracking-tight">Le Monde Steak</h1>
-          <button
-            className="flex h-10 w-12 items-center justify-center rounded-xl bg-white text-[#F34208] shadow-sm"
-            onClick={logout}
-            aria-label="Đăng xuất"
-          >
+          <button className="flex h-10 w-12 items-center justify-center rounded-xl bg-white text-[#F34208] shadow-sm" onClick={logout} aria-label="Đăng xuất">
             <LogoutIcon />
           </button>
         </div>
@@ -159,26 +123,7 @@ export default function AccountPage() {
         )}
       </section>
 
-      <nav className="fixed bottom-0 left-1/2 z-20 grid h-[76px] w-full max-w-md -translate-x-1/2 grid-cols-4 items-center gap-1 border-t border-[#F0D7B0] bg-white px-3 pb-2 pt-2 shadow-2xl shadow-black/10">
-        <Link className="text-center text-[11px] font-semibold text-[#6F625C]" href="/">
-          <HomeIcon />
-          <span>Món ăn</span>
-        </Link>
-        <Link className="text-center text-[11px] font-semibold text-[#6F625C]" href="/history">
-          <HistoryIcon />
-          <span>Lịch sử</span>
-        </Link>
-        <Link className="text-center text-[11px] font-bold text-[#F34208]" href="/account">
-          <UserIcon />
-          <span>Người dùng</span>
-        </Link>
-        <div className="relative">
-          <CartDrawer />
-          <span className="pointer-events-none absolute right-4 top-1 rounded-full bg-white px-1 text-[10px] font-black leading-4 text-[#F34208]">
-            {cartBadge === "0đ" ? "0" : ""}
-          </span>
-        </div>
-      </nav>
+      <CustomerBottomNav active="account" />
     </main>
   )
 }

@@ -2,7 +2,8 @@
 
 import Link from "next/link"
 import { useEffect, useState } from "react"
-import CartDrawer from "@/components/cart/CartDrawer"
+import CustomerBottomNav from "@/components/layout/CustomerBottomNav"
+//import CartDrawer from "@/components/cart/CartDrawer"
 import OrderStatus from "@/components/order/OrderStatus"
 import VoucherList, { Voucher } from "@/components/promotions/VoucherList"
 import { ApiError, apiGet, apiPost } from "@/lib/api"
@@ -225,13 +226,7 @@ export default function OrderPage() {
         </div>
       )}
 
-      <nav className="fixed bottom-0 left-1/2 z-20 grid h-[76px] w-full max-w-md -translate-x-1/2 grid-cols-5 items-center gap-1 border-t border-[#F0D7B0] bg-white px-3 pb-2 pt-2 shadow-2xl shadow-black/10">
-        <Link className="text-center text-[11px] font-semibold text-[#6F625C]" href="/">Món ăn</Link>
-        <Link className="text-center text-[11px] font-bold text-[#D9491E]" href="/order">Đơn hiện tại</Link>
-        <Link className="text-center text-[11px] font-semibold text-[#6F625C]" href="/history">Lịch sử</Link>
-        <Link className="text-center text-[11px] font-semibold text-[#6F625C]" href="/account">Người dùng</Link>
-        <CartDrawer />
-      </nav>
+      <CustomerBottomNav active="order" />
     </main>
   )
 }
