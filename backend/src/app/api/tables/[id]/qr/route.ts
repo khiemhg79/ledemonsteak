@@ -20,8 +20,31 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   }
 
   const table = await prisma.table.findFirst({ where: { id: params.id, isActive: true } })
-  if (!table) return NextResponse.json({ error: "Bàn không tồn tại hoặc đã ngừng hoạt động." }, { status: 404, headers: corsHeaders() })
-  if (table.status !== "EMPTY") return NextResponse.json({ error: "Chỉ có thể tạo QR khi bàn đang Trống." }, { status: 409, headers: corsHeaders() })
+  if (!table) {
+    return NextResponse.json({ error: "Bàn không tồn tại hoặc đã ngừng hoạt động." }, { status: 404, headers: corsHeaders() })
+  }
+
+  const [activeOrder, unpaidInvoice] = await Promise.all([
+    prisma.order.findFirst({
+      where: { tableId: table.id, status: { notIn: ["COMPLETED", "CANCELLED"] } },
+      select: { id: true },
+    }),
+    prisma.invoice.findFirst({
+      where: { tableId: table.id, status: "UNPAID" },
+      select: { id: true },
+    }),
+  ])
+
+  if (activeOrder || unpaidInvoice) {
+    return NextResponse.json({ error: "Chỉ có thể tạo QR khi bàn đang Trống." }, { status: 409, headers: corsHeaders() })
+  }
+
+  if (table.status !== "EMPTY") {
+    await prisma.table.update({
+      where: { id: table.id },
+      data: { status: "EMPTY" },
+    })
+  }
 
   const deployedBase = process.env.CUSTOMER_APP_URL?.replace(/\/$/, "")
   const base = deployedBase?.startsWith("https://") ? deployedBase : `http://${getLanIPv4()}:3000`
