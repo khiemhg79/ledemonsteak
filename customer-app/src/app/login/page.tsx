@@ -77,7 +77,6 @@ export default function LoginPage() {
         mode === "login"
           ? { phone: normalizedPhone, password }
           : { name: name.trim(), phone: normalizedPhone, password }
-
       const data = await apiPost(path, body)
       login(data.user, data.token)
       router.push("/")
@@ -89,32 +88,71 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="flex min-h-screen justify-center overflow-y-auto bg-[#190B07] text-[#171B2A]">
-      <div className="relative min-h-[900px] w-full max-w-[466px] overflow-hidden bg-[linear-gradient(90deg,#160704_0%,#2A120B_14%,#3B190D_50%,#2A120B_86%,#160704_100%)]">
-        <div className="absolute inset-x-0 top-0 h-[330px] bg-[radial-gradient(circle_at_50%_0%,rgba(255,115,23,0.42),transparent_60%)]" />
+    <main className="min-h-screen bg-[#FFF8EE] text-[#171B2A]">
+      <div className="relative mx-auto min-h-[900px] w-full max-w-md overflow-hidden bg-[#FFF8EE] shadow-2xl shadow-black/10">
+        <div className="absolute inset-0">
+          <header className="h-[86px] bg-[linear-gradient(100deg,#F34208_0%,#FA5A0A_52%,#F08A1A_100%)] px-5 pt-8 text-white shadow-lg shadow-[#F34208]/20">
+            <div className="flex items-center justify-between">
+              <h1 className="text-[18px] font-black tracking-tight">Le Monde Steak</h1>
+              <div className="rounded-xl bg-white px-4 py-2 text-sm font-black text-[#F34208] shadow-sm">Đăng nhập</div>
+            </div>
+          </header>
 
-        <div className="absolute left-1/2 top-[22px] h-[825px] w-[360px] max-w-[calc(100%-72px)] -translate-x-1/2 overflow-hidden rounded-[4px] border border-white/65 bg-[#FFF7EA] shadow-2xl shadow-black/35">
-          <div className="h-[124px] bg-[linear-gradient(115deg,#9A2D12_0%,#D05A13_48%,#F08A1A_100%)] px-7 pt-[30px] text-[18px] font-black text-white">
-            Le Monde Steak
+          <div className="space-y-5 px-5 py-5 opacity-45 blur-[2px]">
+            <div className="rounded-2xl border border-[#F0D7B0] bg-white px-5 py-5 shadow-sm">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#FFF1DA] text-[#F34208]">⌖</div>
+                <div>
+                  <p className="text-[15px] font-black text-[#D93612]">Chưa chọn bàn</p>
+                  <p className="mt-1 text-xs font-bold text-[#8A7A70]">Khách</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex h-14 items-center gap-3 rounded-2xl border border-[#F0D7B0] bg-white px-4 text-[#D9491E] shadow-sm">
+              <span className="text-lg">⌕</span>
+              <span className="text-sm text-[#8A7A70]">Tìm kiếm món ăn...</span>
+            </div>
+
+            <div className="flex gap-3 overflow-hidden">
+              <div className="rounded-2xl bg-[#D9491E] px-7 py-4 text-sm font-black text-white">Tất cả</div>
+              <div className="rounded-2xl border border-[#F0D7B0] bg-white px-7 py-4 text-sm font-black text-[#D9491E]">Combo</div>
+              <div className="rounded-2xl border border-[#F0D7B0] bg-white px-7 py-4 text-sm font-black text-[#D9491E]">Petit Classique</div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="overflow-hidden rounded-2xl border border-[#F0D7B0] bg-white shadow-sm">
+                <div className="h-[150px] bg-[radial-gradient(circle_at_50%_45%,#F5B64A_0%,#9A1B18_48%,#4A120F_100%)]" />
+                <div className="space-y-2 p-4">
+                  <div className="h-4 rounded-full bg-[#1B1D2B]" />
+                  <div className="h-3 w-3/4 rounded-full bg-[#B8AAA0]" />
+                  <div className="mt-4 flex items-center justify-between">
+                    <div className="h-4 w-20 rounded-full bg-[#C51E16]" />
+                    <div className="h-9 w-20 rounded-full bg-[#D9491E]" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="overflow-hidden rounded-2xl border border-[#F0D7B0] bg-white shadow-sm">
+                <div className="h-[150px] bg-[radial-gradient(circle_at_50%_45%,#F8E7D0_0%,#8C3A23_48%,#4E1B13_100%)]" />
+                <div className="space-y-2 p-4">
+                  <div className="h-4 rounded-full bg-[#1B1D2B]" />
+                  <div className="h-3 w-3/4 rounded-full bg-[#B8AAA0]" />
+                  <div className="mt-4 flex items-center justify-between">
+                    <div className="h-4 w-20 rounded-full bg-[#C51E16]" />
+                    <div className="h-9 w-20 rounded-full bg-[#D9491E]" />
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
-          <div className="px-[18px] pt-[18px] opacity-30 blur-[4px]">
-            <div className="h-[142px] rounded-2xl bg-white shadow-[0_14px_34px_rgba(113,70,35,0.16)]" />
-            <div className="mt-4 h-[52px] rounded-2xl border border-[#F1D4AA] bg-white" />
-            <div className="mt-4 grid grid-cols-2 gap-3">
-              <div className="h-[128px] rounded-2xl bg-[#7A2418]" />
-              <div className="h-[128px] rounded-2xl bg-[#B84A18]" />
-            </div>
-            <div className="mt-4 grid grid-cols-2 gap-3">
-              <div className="h-[118px] rounded-2xl bg-[#D18A36]" />
-              <div className="h-[118px] rounded-2xl bg-[#F3C779]" />
-            </div>
-          </div>
-
-          <div className="absolute inset-x-0 bottom-0 h-[260px] bg-[linear-gradient(180deg,rgba(255,248,237,0),rgba(255,245,228,0.86)_42%,rgba(255,250,240,0.98)_100%)]" />
+          <div className="absolute inset-x-0 bottom-0 h-[82px] border-t border-[#F0D7B0] bg-white/95 shadow-[0_-16px_30px_rgba(64,32,15,0.08)]" />
         </div>
 
-        <section className="absolute left-1/2 top-[180px] z-10 w-[368px] max-w-[calc(100%-32px)] -translate-x-1/2 rounded-[24px] bg-[#FFFDF8] px-[28px] pb-[26px] pt-[30px] shadow-[0_22px_46px_rgba(58,25,11,0.3)]">
+        <div className="absolute inset-0 bg-white/10 backdrop-blur-[1px]" />
+
+        <section className="absolute left-1/2 top-[206px] z-10 w-[368px] max-w-[calc(100%-32px)] -translate-x-1/2 rounded-[24px] bg-[#FFFDF8] px-[28px] pb-[26px] pt-[30px] shadow-[0_22px_46px_rgba(58,25,11,0.24)]">
           <Link
             href="/"
             className="absolute right-[21px] top-[17px] text-[27px] font-light leading-none text-[#A3A5AC] transition hover:text-[#FF4B16]"
