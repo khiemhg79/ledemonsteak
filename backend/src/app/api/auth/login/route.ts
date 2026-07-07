@@ -27,7 +27,20 @@ export async function POST(req: NextRequest) {
 
     await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } })
     const token = signToken({ id: user.id, role: user.role, name: user.name })
-    return NextResponse.json({ token, user: { id: user.id, name: user.name, role: user.role } }, { headers: corsHeaders() })
+
+    return NextResponse.json(
+      {
+        token,
+        user: {
+          id: user.id,
+          name: user.name,
+          phone: user.phone,
+          email: user.email,
+          role: user.role,
+        },
+      },
+      { headers: corsHeaders() }
+    )
   } catch (error) {
     console.error("Login failed", error)
     return NextResponse.json({ error: "Không thể đăng nhập. Vui lòng thử lại." }, { status: 500, headers: corsHeaders() })

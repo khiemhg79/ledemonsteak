@@ -45,7 +45,20 @@ export async function POST(req: NextRequest) {
     })
 
     const token = signToken({ id: user.id, role: user.role, name: user.name })
-    return NextResponse.json({ token, user: { id: user.id, name: user.name, role: user.role } }, { status: 201, headers: corsHeaders() })
+
+    return NextResponse.json(
+      {
+        token,
+        user: {
+          id: user.id,
+          name: user.name,
+          phone: user.phone,
+          email: user.email,
+          role: user.role,
+        },
+      },
+      { status: 201, headers: corsHeaders() }
+    )
   } catch (error) {
     console.error("Register failed", error)
     return NextResponse.json({ error: "Không thể tạo tài khoản. Vui lòng thử lại." }, { status: 500, headers: corsHeaders() })

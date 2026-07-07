@@ -1,6 +1,12 @@
 import { create } from "zustand"
 
-interface User { id: string; name: string; role: string }
+interface User {
+  id: string
+  name: string
+  role: string
+  phone?: string | null
+  email?: string | null
+}
 
 interface AuthStore {
   user: User | null
