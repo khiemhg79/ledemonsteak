@@ -89,28 +89,32 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="flex min-h-screen justify-center overflow-hidden bg-[#190B07] text-[#171B2A]">
-      <div className="relative min-h-screen w-full max-w-[466px] overflow-hidden bg-[linear-gradient(90deg,#130704_0%,#251009_14%,#31150D_50%,#251009_86%,#130704_100%)]">
-        <div className="absolute left-1/2 top-[14px] h-[calc(100%-28px)] w-[331px] max-w-[calc(100%-72px)] -translate-x-1/2 overflow-hidden rounded-[3px] border border-white/70 bg-[#F7EDE2] shadow-2xl shadow-black/35">
-          <div className="h-[99px] bg-[linear-gradient(115deg,#8F2410_0%,#C15413_48%,#D87318_100%)] px-6 pt-[22px] text-[17px] font-black text-white">
+    <main className="flex min-h-screen justify-center overflow-y-auto bg-[#190B07] text-[#171B2A]">
+      <div className="relative min-h-[900px] w-full max-w-[466px] overflow-hidden bg-[linear-gradient(90deg,#160704_0%,#2A120B_14%,#3B190D_50%,#2A120B_86%,#160704_100%)]">
+        <div className="absolute inset-x-0 top-0 h-[330px] bg-[radial-gradient(circle_at_50%_0%,rgba(255,115,23,0.42),transparent_60%)]" />
+
+        <div className="absolute left-1/2 top-[22px] h-[825px] w-[360px] max-w-[calc(100%-72px)] -translate-x-1/2 overflow-hidden rounded-[4px] border border-white/65 bg-[#FFF7EA] shadow-2xl shadow-black/35">
+          <div className="h-[124px] bg-[linear-gradient(115deg,#9A2D12_0%,#D05A13_48%,#F08A1A_100%)] px-7 pt-[30px] text-[18px] font-black text-white">
             Le Monde Steak
           </div>
 
-          <div className="px-[18px] pt-[18px] opacity-25 blur-[3px]">
-            <div className="h-[170px] rounded-2xl bg-white shadow-[0_10px_28px_rgba(113,70,35,0.15)]">
-              <div className="px-5 pt-5">
-                <p className="text-[15px] font-black text-[#E04A1D]">Bàn số 1</p>
-                <p className="mt-3 h-4 w-36 rounded-full bg-[#CFC7BE]" />
-                <p className="mt-3 h-4 w-28 rounded-full bg-[#DED8D1]" />
-              </div>
+          <div className="px-[18px] pt-[18px] opacity-30 blur-[4px]">
+            <div className="h-[142px] rounded-2xl bg-white shadow-[0_14px_34px_rgba(113,70,35,0.16)]" />
+            <div className="mt-4 h-[52px] rounded-2xl border border-[#F1D4AA] bg-white" />
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              <div className="h-[128px] rounded-2xl bg-[#7A2418]" />
+              <div className="h-[128px] rounded-2xl bg-[#B84A18]" />
+            </div>
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              <div className="h-[118px] rounded-2xl bg-[#D18A36]" />
+              <div className="h-[118px] rounded-2xl bg-[#F3C779]" />
             </div>
           </div>
 
-          <div className="absolute inset-x-0 bottom-[64px] h-[118px] bg-[linear-gradient(180deg,rgba(232,218,202,0),rgba(219,207,193,0.72),rgba(248,243,237,0.95))]" />
-          <div className="absolute inset-x-0 bottom-0 h-[64px] bg-white" />
+          <div className="absolute inset-x-0 bottom-0 h-[260px] bg-[linear-gradient(180deg,rgba(255,248,237,0),rgba(255,245,228,0.86)_42%,rgba(255,250,240,0.98)_100%)]" />
         </div>
 
-        <section className="absolute left-1/2 top-[161px] z-10 w-[368px] max-w-[calc(100%-32px)] -translate-x-1/2 rounded-[22px] bg-[#FFFDF8] px-[28px] pb-[24px] pt-[28px] shadow-[0_18px_36px_rgba(78,38,15,0.24)]">
+        <section className="absolute left-1/2 top-[180px] z-10 w-[368px] max-w-[calc(100%-32px)] -translate-x-1/2 rounded-[24px] bg-[#FFFDF8] px-[28px] pb-[26px] pt-[30px] shadow-[0_22px_46px_rgba(58,25,11,0.3)]">
           <Link
             href="/"
             className="absolute right-[21px] top-[17px] text-[27px] font-light leading-none text-[#A3A5AC] transition hover:text-[#FF4B16]"
@@ -136,8 +140,8 @@ export default function LoginPage() {
             <button
               type="button"
               className={`flex h-[35px] items-center justify-center gap-[7px] rounded-[8px] border transition active:scale-[0.98] ${mode === "login"
-                ? "border-[#FF3D0A] bg-[#FF3D0A] text-white shadow-[0_8px_16px_rgba(255,61,10,0.24)]"
-                : "border-[#F2D4AA] bg-[#FFFDF8] text-[#E24716]"
+                  ? "border-[#FF3D0A] bg-[#FF3D0A] text-white shadow-[0_8px_16px_rgba(255,61,10,0.24)]"
+                  : "border-[#F2D4AA] bg-[#FFFDF8] text-[#E24716]"
                 }`}
               onClick={() => switchMode("login")}
             >
@@ -148,8 +152,8 @@ export default function LoginPage() {
             <button
               type="button"
               className={`flex h-[35px] items-center justify-center gap-[7px] rounded-[8px] border transition active:scale-[0.98] ${mode === "register"
-                ? "border-[#FF3D0A] bg-[#FF3D0A] text-white shadow-[0_8px_16px_rgba(255,61,10,0.24)]"
-                : "border-[#F2D4AA] bg-[#FFFDF8] text-[#E24716]"
+                  ? "border-[#FF3D0A] bg-[#FF3D0A] text-white shadow-[0_8px_16px_rgba(255,61,10,0.24)]"
+                  : "border-[#F2D4AA] bg-[#FFFDF8] text-[#E24716]"
                 }`}
               onClick={() => switchMode("register")}
             >
