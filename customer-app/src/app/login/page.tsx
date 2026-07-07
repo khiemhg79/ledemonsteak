@@ -152,7 +152,7 @@ export default function LoginPage() {
 
         <div className="absolute inset-0 bg-white/10 backdrop-blur-[1px]" />
 
-        <section className="absolute left-1/2 top-[206px] z-10 w-[368px] max-w-[calc(100%-32px)] -translate-x-1/2 rounded-[24px] bg-[#FFFDF8] px-[28px] pb-[26px] pt-[30px] shadow-[0_22px_46px_rgba(58,25,11,0.24)]">
+        <section className="absolute left-1/2 top-[54%] z-10 w-[368px] max-w-[calc(100%-32px)] -translate-x-1/2 -translate-y-1/2 rounded-[24px] bg-[#FFFDF8] px-[28px] pb-[26px] pt-[30px] shadow-[0_22px_46px_rgba(58,25,11,0.24)]">
           <Link
             href="/"
             className="absolute right-[21px] top-[17px] text-[27px] font-light leading-none text-[#A3A5AC] transition hover:text-[#FF4B16]"
