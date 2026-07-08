@@ -17,6 +17,9 @@ type PromotionPayload = {
   isActive: boolean
 }
 
+export const dynamic = "force-dynamic"
+export const revalidate = 0
+
 function cleanText(value: unknown, max = 50) {
   return String(value ?? "").trim().replace(/\s+/g, " ").slice(0, max)
 }
@@ -92,13 +95,32 @@ export async function GET(req: NextRequest) {
   const promos = await prisma.promotion.findMany({ orderBy: [{ isActive: "desc" }, { startDate: "desc" }] })
   if (auth.user.role === "ADMIN") return NextResponse.json(promos.map(exposePromotion), { headers: corsHeaders() })
 
+  const customer = await prisma.customer.findFirst({
+    where: { userId: auth.user.id },
+    select: { id: true },
+  })
+
+  const usedPromotionIds = customer
+    ? new Set(
+      (await prisma.customerPromotion.findMany({
+        where: { customerId: customer.id, isUsed: true },
+        select: { promotionId: true },
+      })).map((item) => item.promotionId),
+    )
+    : new Set<string>()
+
   const now = new Date()
   const available = promos
-    .filter((promo) => promo.isActive && (promo.usageLimit == null || promo.usageCount < promo.usageLimit))
+    .filter((promo) => (
+      promo.isActive
+      && (promo.usageLimit == null || promo.usageCount < promo.usageLimit)
+      && !usedPromotionIds.has(promo.id)
+    ))
     .map((promo) => exposePromotion({
       ...promo,
       availabilityStatus: promo.startDate > now ? "UPCOMING" : "ACTIVE",
     }))
+
   return NextResponse.json(available, { headers: corsHeaders() })
 }
 
