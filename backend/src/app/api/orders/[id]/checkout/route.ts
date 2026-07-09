@@ -43,21 +43,29 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
       const allowedMethods = ["CASH", "BANK_TRANSFER", "CARD", "E_WALLET"] as const
       const selectedMethod = allowedMethods.includes(paymentMethod) ? paymentMethod : "CASH"
-      const paidAmount = receivedAmount == null ? order.finalAmount : Number(receivedAmount)
-      if (!Number.isFinite(paidAmount) || paidAmount < order.finalAmount) {
+      const payableTotal = Number(order.finalAmount || order.totalAmount || 0)
+      const paidAmount = receivedAmount == null ? payableTotal : Number(receivedAmount)
+      if (!Number.isFinite(paidAmount) || paidAmount < payableTotal) {
         return NextResponse.json({ error: "So tien nhan phai lon hon hoac bang tong tien hoa don." }, { status: 400, headers: corsHeaders() })
       }
 
       const paidAt = new Date()
       const completedOrder = await prisma.$transaction(async (tx) => {
         await tx.table.update({ where: { id: order.tableId! }, data: { status: "EMPTY" } })
+        await tx.orderDetail.updateMany({ where: { orderId: params.id }, data: { status: "SERVED" } })
         await tx.order.update({ where: { id: params.id }, data: { status: "COMPLETED" } })
 
         if (order.promoCode) {
-          await tx.promotion.updateMany({ where: { id: order.promoCode }, data: { usageCount: { increment: 1 } } })
-          if (order.customerId) {
+          const promotion = await tx.promotion.findFirst({
+            where: { OR: [{ id: order.promoCode }, { name: order.promoCode }] },
+            select: { id: true },
+          })
+          if (promotion) {
+            await tx.promotion.update({ where: { id: promotion.id }, data: { usageCount: { increment: 1 } } })
+          }
+          if (promotion && order.customerId) {
             const existingCustomerPromotion = await tx.customerPromotion.findFirst({
-              where: { customerId: order.customerId, promotionId: order.promoCode },
+              where: { customerId: order.customerId, promotionId: promotion.id },
               select: { id: true },
             })
             if (existingCustomerPromotion) {
@@ -67,7 +75,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
               })
             } else {
               await tx.customerPromotion.create({
-                data: { customerId: order.customerId, promotionId: order.promoCode, isUsed: true, usedAt: paidAt },
+                data: { customerId: order.customerId, promotionId: promotion.id, isUsed: true, usedAt: paidAt },
               })
             }
           }
@@ -75,28 +83,19 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
         const completedOrder = await tx.order.findUnique({
           where: { id: params.id },
-          select: {
-            id: true,
-            orderNumber: true,
-            tableId: true,
-            userId: true,
-            customerId: true,
-            status: true,
-            totalAmount: true,
-            taxAmount: true,
-            serviceCharge: true,
-            discount: true,
-            finalAmount: true,
-            promoCode: true,
-            customerNotes: true,
-            createdAt: true,
-            updatedAt: true,
+          include: {
             table: { select: { id: true, number: true, status: true } },
             customer: {
               select: {
                 id: true,
                 name: true,
                 user: { select: { id: true, name: true, phone: true } },
+              },
+            },
+            orderDetails: {
+              include: {
+                item: { select: { id: true, name: true } },
+                combo: { select: { id: true, name: true } },
               },
             },
           },
@@ -109,7 +108,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         invoiceCode: `INV-${order.orderNumber}`,
         subtotal: order.totalAmount,
         taxAmount: order.taxAmount,
-        total: order.finalAmount,
+        total: payableTotal,
         paymentMethod: selectedMethod,
         status: "PAID",
         paidAt,
@@ -126,7 +125,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
               tableId: order.tableId,
               subtotal: order.totalAmount,
               taxAmount: order.taxAmount,
-              total: order.finalAmount,
+              total: payableTotal,
               status: "PAID",
               paidAt,
               paymentMethod: selectedMethod,
@@ -140,7 +139,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
               tableId: order.tableId,
               subtotal: order.totalAmount,
               taxAmount: order.taxAmount,
-              total: order.finalAmount,
+              total: payableTotal,
               paymentMethod: selectedMethod,
               status: "PAID",
               paidAt,
@@ -155,9 +154,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         invoiceId: invoice.id,
         orderId: order.id,
         method: selectedMethod,
-        amount: order.finalAmount,
+        amount: payableTotal,
         paidAmount,
-        changeAmount: paidAmount - order.finalAmount,
+        changeAmount: paidAmount - payableTotal,
         status: "SUCCESS",
         paidAt,
         createdAt: paidAt,
@@ -169,9 +168,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
             invoiceId: invoice.id?.startsWith?.("local-") ? null : invoice.id,
             orderId: order.id,
             method: selectedMethod,
-            amount: order.finalAmount,
+            amount: payableTotal,
             paidAmount,
-            changeAmount: paidAmount - order.finalAmount,
+            changeAmount: paidAmount - payableTotal,
             status: "SUCCESS",
             paidAt,
           },
@@ -183,9 +182,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       return NextResponse.json({
         invoice: { ...invoice, discount: order.discount },
         payment,
-        order: completedOrder ? attachOrderItems({ ...completedOrder, orderDetails: [] }) : null,
+        order: completedOrder ? attachOrderItems(completedOrder) : null,
         receivedAmount: paidAmount,
-        changeAmount: paidAmount - order.finalAmount,
+        changeAmount: paidAmount - payableTotal,
       }, { headers: corsHeaders() })
     }
 
