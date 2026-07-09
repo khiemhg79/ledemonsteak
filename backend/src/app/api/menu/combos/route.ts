@@ -83,7 +83,7 @@ export async function POST(req: NextRequest) {
     },
     include: {
       items: {
-        include: { item: true },
+        include: { item: { select: { id: true, name: true } } },
       },
     },
   })

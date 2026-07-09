@@ -40,16 +40,67 @@ export async function GET(req: NextRequest) {
   const checked = authError(req, ["STAFF", "ADMIN"])
   if (checked.response) return checked.response
 
+  const overview = req.nextUrl.searchParams.get("overview") === "1"
+  const tableQuery = prisma.table.findMany({
+    where: { isActive: true },
+    select: { id: true, number: true, capacity: true, status: true, isActive: true },
+    orderBy: { number: "asc" },
+  })
+  const activeOrderWhere = {
+    tableId: { not: null },
+    status: { notIn: ["COMPLETED", "CANCELLED"] },
+  }
+
+  if (overview) {
+    const [tables, orders] = await Promise.all([
+      tableQuery,
+      prisma.order.findMany({
+        where: activeOrderWhere,
+        select: {
+          id: true,
+          orderNumber: true,
+          tableId: true,
+          status: true,
+          totalAmount: true,
+          discount: true,
+          finalAmount: true,
+          promoCode: true,
+          createdAt: true,
+          updatedAt: true,
+          table: { select: { id: true, number: true, status: true } },
+        },
+        orderBy: { createdAt: "asc" },
+        take: 120,
+      }),
+    ])
+
+    const activeOrderTableIds = new Set(orders.map((order) => order.tableId).filter(Boolean))
+    const syncedTables = tables.map((table) => {
+      if (table.status === "REQUESTING_BILL") return table
+      if (activeOrderTableIds.has(table.id)) return { ...table, status: "OCCUPIED" }
+      if (table.status === "OCCUPIED") return { ...table, status: "EMPTY" }
+      return table
+    })
+    const syncedStatusByTableId = new Map(syncedTables.map((table) => [table.id, table.status]))
+
+    return NextResponse.json({
+      tables: syncedTables,
+      orders: orders.map((order) => ({
+        ...order,
+        table: order.table ? { ...order.table, status: syncedStatusByTableId.get(order.table.id) ?? order.table.status } : order.table,
+        items: [],
+      })),
+    }, { headers: corsHeaders() })
+  }
+
   const [tables, activeOrders] = await Promise.all([
-    prisma.table.findMany({
-      where: { isActive: true },
-      orderBy: { number: "asc" },
-    }),
+    tableQuery,
     prisma.order.findMany({
       where: {
         tableId: { not: null },
         status: { notIn: ["COMPLETED", "CANCELLED"] },
       },
+      distinct: ["tableId"],
       select: { tableId: true },
     }),
   ])

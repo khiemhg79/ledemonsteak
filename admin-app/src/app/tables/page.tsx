@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react"
 import Modal from "@/components/ui/Modal"
-import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/api"
+import { apiDelete, apiGet, apiGetCached, apiPatch, apiPost } from "@/lib/api"
 import { subscribeRealtime } from "@/lib/realtime"
 
 type TableStatus = "EMPTY" | "OCCUPIED" | "REQUESTING_BILL"
@@ -33,6 +33,7 @@ const cardStyle: Record<TableStatus, string> = {
 }
 
 const emptyForm = { number: "", capacity: "2", status: "EMPTY" as TableStatus, isActive: true }
+const TABLES_PATH = "/api/tables"
 
 function cleanTableNumber(value: string) {
   return value.replace(/\s+/g, "").toUpperCase().slice(0, 10)
@@ -58,16 +59,22 @@ export default function TablesPage() {
 
   async function load(force = false) {
     try {
-      setTables(await apiGet("/api/tables", undefined, { force }))
+      setTables(await apiGet(TABLES_PATH, undefined, { force }))
     } catch (error: any) {
       setMessage(error.message)
     }
   }
 
   useEffect(() => {
-    load()
-    const unsubscribe = subscribeRealtime("admin", () => {
-      if (document.visibilityState === "visible") load(true)
+    const cached = apiGetCached(TABLES_PATH)
+    if (cached) {
+      setTables(cached)
+      void load(true)
+    } else {
+      void load()
+    }
+    const unsubscribe = subscribeRealtime("admin-tables", () => {
+      if (document.visibilityState === "visible") load(false)
     })
     return unsubscribe
   }, [])

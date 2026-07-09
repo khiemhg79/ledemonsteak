@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import RevenueChart, { ReportData } from "@/components/dashboard/RevenueChart"
-import { apiGet } from "@/lib/api"
+import { apiGet, apiGetCached } from "@/lib/api"
 import { subscribeRealtime } from "@/lib/realtime"
 
 const emptyReport: ReportData = {
@@ -14,6 +14,7 @@ const emptyReport: ReportData = {
   averageOrderValue: 0,
   mom: null,
 }
+const REPORT_PATH = "/api/admin/reports"
 
 function money(value: number) {
   return `${Math.round(value).toLocaleString("vi-VN")}đ`
@@ -34,7 +35,7 @@ export default function DashboardPage() {
     if (!silent) setLoading(true)
     if (!silent) setMessage("")
     try {
-      setReport(await apiGet("/api/admin/reports", undefined, { force }))
+      setReport(await apiGet(REPORT_PATH, undefined, { force }))
     } catch (error: any) {
       if (!silent) setMessage(error.message || "Lỗi tải dữ liệu, không thể tạo báo cáo.")
     } finally {
@@ -43,9 +44,16 @@ export default function DashboardPage() {
   }
 
   useEffect(() => {
-    loadReport()
-    const unsubscribe = subscribeRealtime("admin", () => {
-      if (document.visibilityState === "visible") loadReport(true, true)
+    const cached = apiGetCached(REPORT_PATH)
+    if (cached) {
+      setReport(cached)
+      setLoading(false)
+      void loadReport(true, true)
+    } else {
+      void loadReport()
+    }
+    const unsubscribe = subscribeRealtime("admin-reports", () => {
+      if (document.visibilityState === "visible") loadReport(false, true)
     })
     return () => {
       unsubscribe()

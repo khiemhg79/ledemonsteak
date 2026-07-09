@@ -4,10 +4,21 @@ const tableScopes: Record<string, string[]> = {
   customer: ["categories", "items", "combos", "comboitems", "orders", "orderdetails", "invoices", "payments", "promotions", "customerpromotions", "tables"],
   staff: ["tables", "orders", "orderdetails", "invoices", "payments"],
   admin: ["categories", "items", "combos", "comboitems", "orders", "orderdetails", "invoices", "payments", "promotions", "customerpromotions", "tables", "users", "customers", "roles"],
+  "admin-menu": ["categories", "items", "combos", "comboitems"],
+  "admin-tables": ["tables", "orders", "invoices"],
+  "admin-reports": ["orders", "orderdetails", "invoices", "payments"],
+  "admin-promotions": ["promotions", "customerpromotions"],
+  "admin-users": ["users", "customers", "roles"],
 }
 
-const REALTIME_REFRESH_DEBOUNCE_MS = 40
-const FAST_POLL_MS = 900
+const REALTIME_REFRESH_DEBOUNCE_MS = 150
+const REALTIME_SAFETY_POLL_MS = 30_000
+
+function fallbackPollMs(scope: string) {
+  if (scope === "staff") return 5_000
+  if (scope.startsWith("admin")) return 30_000
+  return 10_000
+}
 
 let sharedClient: ReturnType<typeof createClient> | null = null
 
@@ -31,7 +42,7 @@ function getClient() {
   return sharedClient
 }
 
-export function subscribeRealtime(scope: string, onUpdate: () => void | Promise<void>, pollMs = FAST_POLL_MS) {
+export function subscribeRealtime(scope: string, onUpdate: () => void | Promise<void>, pollMs = fallbackPollMs(scope)) {
   if (typeof window === "undefined") return () => {}
 
   const client = getClient()
@@ -50,6 +61,13 @@ export function subscribeRealtime(scope: string, onUpdate: () => void | Promise<
     }, REALTIME_REFRESH_DEBOUNCE_MS)
   }
 
+  const startPolling = (intervalMs: number) => {
+    if (pollTimer) window.clearInterval(pollTimer)
+    pollTimer = window.setInterval(() => {
+      if (document.visibilityState === "visible") notify()
+    }, intervalMs)
+  }
+
   const onFocus = () => notify()
   const onVisibilityChange = () => {
     if (document.visibilityState === "visible") notify()
@@ -57,7 +75,7 @@ export function subscribeRealtime(scope: string, onUpdate: () => void | Promise<
 
   window.addEventListener("focus", onFocus)
   document.addEventListener("visibilitychange", onVisibilityChange)
-  pollTimer = window.setInterval(notify, pollMs)
+  startPolling(client ? REALTIME_SAFETY_POLL_MS : pollMs)
 
   if (client) {
     channel = client.channel(`le-monde-${scope}-${crypto.randomUUID()}`)
@@ -68,11 +86,12 @@ export function subscribeRealtime(scope: string, onUpdate: () => void | Promise<
 
     channel.subscribe((status) => {
       if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
-        console.warn("Supabase realtime unavailable. Fast polling fallback is active.")
+        console.warn("Supabase realtime unavailable. Polling fallback is active.")
+        startPolling(pollMs)
       }
     })
   } else {
-    console.warn("Missing Supabase realtime env. Fast polling fallback is active.")
+    console.warn("Missing Supabase realtime env. Polling fallback is active.")
   }
 
   return () => {

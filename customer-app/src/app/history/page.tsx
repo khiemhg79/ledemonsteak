@@ -120,7 +120,7 @@ export default function HistoryPage() {
 
     load()
     const refresh = () => {
-      if (document.visibilityState === "visible") load(true, true)
+      if (document.visibilityState === "visible") load(false, true)
     }
     const unsubscribeRealtime = subscribeRealtime("customer", refresh)
     window.addEventListener("lemonde:orders-changed", refresh)

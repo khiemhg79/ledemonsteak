@@ -33,6 +33,11 @@ export default function InvoicePage() {
   const pendingRefreshRef = useRef(false)
   const requesting = useMemo(() => orders.filter((order) => order.table?.status === "REQUESTING_BILL"), [orders])
 
+  async function loadOrderForTable(tableId: string) {
+    const orderList = await apiGet(`/api/orders?view=staff&tableId=${tableId}`, undefined, { force: true })
+    return orderList?.[0] ?? null
+  }
+
   async function loadOrders(force = false) {
     if (loadingRef.current) {
       if (force) pendingRefreshRef.current = true
@@ -41,7 +46,7 @@ export default function InvoicePage() {
     loadingRef.current = true
     setError("")
     try {
-      const [orderList, invoiceList] = await Promise.all([apiGet("/api/orders?view=staff", undefined, { force }), apiGet("/api/invoices", undefined, { force })])
+      const [orderList, invoiceList] = await Promise.all([apiGet("/api/orders?view=staff&summary=1", undefined, { force }), apiGet("/api/invoices", undefined, { force })])
       setOrders(orderList)
       setInvoices(invoiceList)
     } catch (err) {
@@ -55,6 +60,12 @@ export default function InvoicePage() {
     }
   }
   function completed() { setSelected(null); loadOrders(true) }
+
+  async function openPayment(order: any) {
+    setError("")
+    const fullOrder = await loadOrderForTable(order.tableId)
+    setSelected(fullOrder ?? order)
+  }
   function printInvoice(invoice: any) {
     const payment = invoice.payments?.[0]
     const methodLabels: Record<string, string> = { CASH: "Tiền mặt", BANK_TRANSFER: "Chuyển khoản", CARD: "Thẻ ngân hàng", E_WALLET: "Ví điện tử / MoMo" }
@@ -81,7 +92,7 @@ export default function InvoicePage() {
       <div className="mb-6 flex items-center justify-between"><div><h2 className="text-2xl font-black text-[#111]">Thanh toán</h2><p className="text-sm text-[#667085]">Danh sách bàn đang yêu cầu thanh toán.</p></div><button className="rounded-md bg-[#FF4A12] px-5 py-3 text-sm font-bold text-white" onClick={() => loadOrders(true)}>Làm mới</button></div>
       <div className="mb-5 flex gap-2"><button className={`rounded-md px-4 py-2 text-sm font-bold ${view === "pending" ? "bg-[#FF4A12] text-white" : "bg-[#E8ECEF] text-[#57606A]"}`} onClick={() => setView("pending")}>Chờ thanh toán ({requesting.length})</button><button className={`rounded-md px-4 py-2 text-sm font-bold ${view === "paid" ? "bg-[#FF4A12] text-white" : "bg-[#E8ECEF] text-[#57606A]"}`} onClick={() => setView("paid")}>Đã thanh toán ({invoices.length})</button></div>
       {error && <div className="mb-4 rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>}
-      {view === "pending" && <><div className="grid gap-4 lg:grid-cols-3">{requesting.map((order) => <article key={order.id} className="rounded-md border border-[#D9DEE6] bg-white p-4 shadow-md"><div className="flex justify-between"><div><h3 className="text-xl font-black text-[#111827]">Bàn {String(order.table?.number ?? "").replace(/^T/i, "")}</h3><p className="text-sm text-[#667085]">Đơn hàng #{order.orderNumber}</p></div><p className="text-xl font-black text-[#B51F18]">{money(order.finalAmount)}</p></div><div className="mt-4 space-y-2">{order.items.map((item: any) => <div key={item.id} className="flex justify-between border-t border-[#D0D5DD] pt-2 text-sm"><span className="font-semibold text-[#111827]">{item.item?.name ?? item.combo?.name} x {item.quantity}</span><span className="font-bold text-[#475467]">{money(item.price * item.quantity)}</span></div>)}</div><button className="mt-4 w-full rounded-md bg-[#12B76A] py-3 text-sm font-black text-white" onClick={() => setSelected(order)}>Xác nhận thanh toán</button></article>)}</div>{!error && requesting.length === 0 && <div className="rounded-md bg-white p-6 text-center text-sm text-gray-500">Chưa có bàn yêu cầu thanh toán.</div>}</>}
+      {view === "pending" && <><div className="grid gap-4 lg:grid-cols-3">{requesting.map((order) => <article key={order.id} className="rounded-md border border-[#D9DEE6] bg-white p-4 shadow-md"><div className="flex justify-between"><div><h3 className="text-xl font-black text-[#111827]">Bàn {String(order.table?.number ?? "").replace(/^T/i, "")}</h3><p className="text-sm text-[#667085]">Đơn hàng #{order.orderNumber}</p></div><p className="text-xl font-black text-[#B51F18]">{money(order.finalAmount)}</p></div><p className="mt-4 rounded-md bg-[#F2F4F7] px-3 py-2 text-xs font-semibold text-[#667085]">Chi tiết món sẽ tải khi xác nhận thanh toán.</p><button className="mt-4 w-full rounded-md bg-[#12B76A] py-3 text-sm font-black text-white" onClick={() => openPayment(order)}>Xác nhận thanh toán</button></article>)}</div>{!error && requesting.length === 0 && <div className="rounded-md bg-white p-6 text-center text-sm text-gray-500">Chưa có bàn yêu cầu thanh toán.</div>}</>}
       {view === "paid" && <><div className="grid gap-4 lg:grid-cols-3">{invoices.map((invoice) => <article key={invoice.id} className="rounded-md border border-[#D9DEE6] bg-white p-4 shadow-md"><div className="flex justify-between gap-4"><div><h3 className="font-black text-[#111827]">{invoice.invoiceCode}</h3><p className="text-sm text-[#667085]">Đơn hàng #{invoice.order.orderNumber} • Bàn {String(invoice.table?.number ?? "").replace(/^T/i, "")}</p><p className="mt-1 text-xs text-[#667085]">{new Date(invoice.paidAt).toLocaleString("vi-VN")}</p></div><p className="text-xl font-black text-[#B51F18]">{money(invoice.total)}</p></div><div className="mt-4 space-y-2">{invoice.order.items.map((item: any) => <div key={item.id} className="flex justify-between border-t border-[#D0D5DD] pt-2 text-sm"><span className="font-semibold">{item.item?.name ?? item.combo?.name} x {item.quantity}</span><span>{money(item.price * item.quantity)}</span></div>)}</div><button className="mt-4 w-full rounded-md bg-[#FF4A12] py-3 text-sm font-black text-white" onClick={() => printInvoice(invoice)}>In hóa đơn</button></article>)}</div>{!error && invoices.length === 0 && <div className="rounded-md bg-white p-6 text-center text-sm text-gray-500">Chưa có hóa đơn đã thanh toán.</div>}</>}
     </section>
     <PaymentModal order={selected} onClose={() => setSelected(null)} onComplete={completed} />

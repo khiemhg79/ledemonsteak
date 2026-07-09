@@ -61,7 +61,7 @@ export default function CartDrawer() {
 
     load()
     const unsubscribe = subscribeRealtime("customer", () => {
-      if (document.visibilityState === "visible") load(true)
+      if (document.visibilityState === "visible") load(false)
     })
 
     return () => unsubscribe()

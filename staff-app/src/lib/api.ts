@@ -39,16 +39,62 @@ async function request(input: RequestInfo | URL, init?: RequestOptions) {
 
 const responseCache = new Map<string, { expiresAt: number; data: any }>()
 const inflightGets = new Map<string, Promise<any>>()
+const PERSISTED_CACHE_PREFIX = "lemonde-staff-api:"
 
 function cacheDuration(path: string) {
-  if (path.startsWith("/api/orders")) return 0
-  if (path === "/api/tables") return 0
-  if (path === "/api/invoices") return 0
+  if (path === "/api/tables?overview=1") return 5_000
+  if (path.startsWith("/api/orders")) return 1_500
+  if (path === "/api/tables") return 2_000
+  if (path === "/api/invoices") return 5_000
   return 0
 }
 
 function clearCache() {
   responseCache.clear()
+  if (typeof window === "undefined") return
+  try {
+    Object.keys(localStorage)
+      .filter((key) => key.startsWith(PERSISTED_CACHE_PREFIX))
+      .forEach((key) => localStorage.removeItem(key))
+  } catch {
+    // Browser storage can be unavailable in private mode.
+  }
+}
+
+function cacheKeyFor(path: string, token?: string) {
+  return `${path}|${token ?? "guest"}`
+}
+
+function storedCacheKey(cacheKey: string) {
+  return `${PERSISTED_CACHE_PREFIX}${cacheKey}`
+}
+
+function readStoredCache(cacheKey: string) {
+  if (typeof window === "undefined") return null
+  try {
+    const raw = localStorage.getItem(storedCacheKey(cacheKey))
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as { expiresAt?: number; data?: any }
+    if (!parsed || parsed.data == null) return null
+    return parsed
+  } catch {
+    return null
+  }
+}
+
+function writeStoredCache(cacheKey: string, entry: { expiresAt: number; data: any }) {
+  if (typeof window === "undefined") return
+  try {
+    localStorage.setItem(storedCacheKey(cacheKey), JSON.stringify(entry))
+  } catch {
+    // Ignore quota errors; memory cache is still available.
+  }
+}
+
+export function apiGetCached(path: string, token?: string) {
+  const currentToken = authToken(token)
+  const cacheKey = cacheKeyFor(path, currentToken)
+  return responseCache.get(cacheKey)?.data ?? readStoredCache(cacheKey)?.data ?? null
 }
 
 function handleUnauthorized(res: Response, path: string) {
@@ -60,13 +106,19 @@ function handleUnauthorized(res: Response, path: string) {
 
 export async function apiGet(path: string, token?: string, options?: { force?: boolean; timeoutMs?: number }) {
   const currentToken = authToken(token)
-  const cacheKey = `${path}|${currentToken ?? "guest"}`
+  const cacheKey = cacheKeyFor(path, currentToken)
   const maxAge = cacheDuration(path)
   const cached = responseCache.get(cacheKey)
   if (!options?.force && cached && cached.expiresAt > Date.now()) return cached.data
 
+  const stored = maxAge ? readStoredCache(cacheKey) : null
+  if (!options?.force && stored && stored.expiresAt && stored.expiresAt > Date.now()) {
+    responseCache.set(cacheKey, { expiresAt: stored.expiresAt, data: stored.data })
+    return stored.data
+  }
+
   const pending = inflightGets.get(cacheKey)
-  if (pending) return pending
+  if (!options?.force && pending) return pending
 
   const promise = request(`${apiBase()}${path}`, {
     cache: maxAge ? "default" : "no-store",
@@ -76,7 +128,11 @@ export async function apiGet(path: string, token?: string, options?: { force?: b
     handleUnauthorized(res, path)
     if (!res.ok) throw new Error(await readError(res))
     const data = await res.json()
-    if (maxAge) responseCache.set(cacheKey, { expiresAt: Date.now() + maxAge, data })
+    if (maxAge) {
+      const entry = { expiresAt: Date.now() + maxAge, data }
+      responseCache.set(cacheKey, entry)
+      writeStoredCache(cacheKey, entry)
+    }
     return data
   }).finally(() => inflightGets.delete(cacheKey))
 

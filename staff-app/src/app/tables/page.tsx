@@ -1,17 +1,20 @@
 "use client"
 
 import Link from "next/link"
+import dynamic from "next/dynamic"
 import { useRouter } from "next/navigation"
 import { useEffect, useRef, useState } from "react"
-import QRModal from "@/components/tables/QRModal"
 import TableGrid from "@/components/tables/TableGrid"
-import PaymentModal from "@/components/payments/PaymentModal"
-import OrderDetailModal from "@/components/orders/OrderDetailModal"
-import { apiGet, apiPatch } from "@/lib/api"
+import { apiGet, apiGetCached, apiPatch } from "@/lib/api"
 import { subscribeRealtime } from "@/lib/realtime"
 import { useAuth } from "@/store/auth"
 
 type TableStatus = "EMPTY" | "OCCUPIED" | "REQUESTING_BILL"
+const TABLE_OVERVIEW_PATH = "/api/tables?overview=1"
+
+const QRModal = dynamic(() => import("@/components/tables/QRModal"), { ssr: false })
+const PaymentModal = dynamic(() => import("@/components/payments/PaymentModal"), { ssr: false })
+const OrderDetailModal = dynamic(() => import("@/components/orders/OrderDetailModal"), { ssr: false })
 
 export default function TablesPage() {
   const router = useRouter()
@@ -28,6 +31,11 @@ export default function TablesPage() {
   const loadingRef = useRef(false)
   const pendingRefreshRef = useRef(false)
 
+  async function loadOrderForTable(tableId: string) {
+    const orderList = await apiGet(`/api/orders?view=staff&tableId=${tableId}`, undefined, { force: true })
+    return orderList?.[0] ?? null
+  }
+
   async function loadData(silent = false, force = false) {
     if (loadingRef.current) {
       if (force) pendingRefreshRef.current = true
@@ -37,13 +45,18 @@ export default function TablesPage() {
     if (!silent) setLoading(true)
     setError("")
     try {
-      const [tableList, orderList] = await Promise.all([apiGet("/api/tables", undefined, { force }), apiGet("/api/orders?view=staff", undefined, { force })])
+      const overview = await apiGet(TABLE_OVERVIEW_PATH, undefined, { force })
+      const tableList = Array.isArray(overview?.tables) ? overview.tables : []
+      const orderList = Array.isArray(overview?.orders) ? overview.orders : []
       setTables(tableList); setOrders(orderList)
       const requesting = orderList.find((order: any) => order.table?.status === "REQUESTING_BILL" && !dismissed.current.has(order.id))
-      if (requesting && !paymentOrder) setPaymentOrder(requesting)
+      if (requesting && !paymentOrder) {
+        const fullOrder = await loadOrderForTable(requesting.tableId)
+        if (fullOrder) setPaymentOrder(fullOrder)
+      }
       if (paymentOrder) {
         const refreshed = orderList.find((order: any) => order.id === paymentOrder.id)
-        if (refreshed?.table?.status === "REQUESTING_BILL") setPaymentOrder(refreshed)
+        if (!refreshed || refreshed.table?.status !== "REQUESTING_BILL") setPaymentOrder(null)
       }
     } catch (err) { setError(err instanceof Error ? err.message : "Không tải được dữ liệu bàn.") } finally {
       loadingRef.current = false
@@ -60,15 +73,24 @@ export default function TablesPage() {
     try { await apiPatch(`/api/tables/${tableId}`, { status }); loadData(true, true) } catch (err) { setError(err instanceof Error ? err.message : "Không cập nhật được trạng thái bàn."); loadData(true, true) }
   }
 
-  function selectTable(table: any) {
+  async function selectTable(table: any) {
     const order = orders.find((item) => item.tableId === table.id)
     if (table.status === "REQUESTING_BILL") {
-      if (order) { dismissed.current.delete(order.id); setPaymentOrder(order); return }
+      if (order) {
+        dismissed.current.delete(order.id)
+        const fullOrder = await loadOrderForTable(table.id)
+        setPaymentOrder(fullOrder ?? order)
+        return
+      }
       setError("TB02: Bàn yêu cầu thanh toán nhưng không tìm thấy đơn hiện tại.")
       return
     }
     if (table.status === "OCCUPIED") {
-      if (order) { setDetailOrder(order); return }
+      if (order) {
+        const fullOrder = await loadOrderForTable(table.id)
+        setDetailOrder(fullOrder ?? order)
+        return
+      }
       setError("TB02: Bàn đang dùng nhưng chưa có order món.")
       return
     }
@@ -79,7 +101,14 @@ export default function TablesPage() {
   function paymentCompleted() { setPaymentOrder(null); loadData(false, true) }
 
   useEffect(() => {
-    loadData()
+    const cachedOverview = apiGetCached(TABLE_OVERVIEW_PATH)
+    if (cachedOverview?.tables) {
+      setTables(Array.isArray(cachedOverview.tables) ? cachedOverview.tables : [])
+      setOrders(Array.isArray(cachedOverview.orders) ? cachedOverview.orders : [])
+      loadData(true, true)
+    } else {
+      loadData()
+    }
     const unsubscribe = subscribeRealtime("staff", () => {
       if (document.visibilityState === "visible") loadData(true, true)
     })

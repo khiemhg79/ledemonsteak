@@ -1,7 +1,7 @@
 "use client"
 
 import { FormEvent, useEffect, useMemo, useState } from "react"
-import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/api"
+import { apiDelete, apiGet, apiGetCached, apiPatch, apiPost } from "@/lib/api"
 import { subscribeRealtime } from "@/lib/realtime"
 import Modal from "@/components/ui/Modal"
 
@@ -37,6 +37,7 @@ type PromotionForm = {
 }
 
 const today = new Date().toISOString().slice(0, 10)
+const PROMOTIONS_PATH = "/api/promotions"
 const baseForm: PromotionForm = {
   name: "",
   code: "",
@@ -103,16 +104,22 @@ export default function PromotionTable() {
 
   async function load(force = false) {
     try {
-      setPromos(await apiGet("/api/promotions", undefined, { force }))
+      setPromos(await apiGet(PROMOTIONS_PATH, undefined, { force }))
     } catch (error: any) {
       setMessage(error.message)
     }
   }
 
   useEffect(() => {
-    load()
-    const unsubscribe = subscribeRealtime("admin", () => {
-      if (document.visibilityState === "visible") load(true)
+    const cached = apiGetCached(PROMOTIONS_PATH)
+    if (cached) {
+      setPromos(cached)
+      void load(true)
+    } else {
+      void load()
+    }
+    const unsubscribe = subscribeRealtime("admin-promotions", () => {
+      if (document.visibilityState === "visible") load(false)
     })
     return unsubscribe
   }, [])

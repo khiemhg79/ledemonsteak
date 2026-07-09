@@ -1,7 +1,7 @@
 "use client"
 
 import { FormEvent, useEffect, useMemo, useState } from "react"
-import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/api"
+import { apiDelete, apiGet, apiGetCached, apiPatch, apiPost } from "@/lib/api"
 import { subscribeRealtime } from "@/lib/realtime"
 import Modal from "@/components/ui/Modal"
 
@@ -23,6 +23,7 @@ type UserForm = {
 }
 
 const emptyForm: UserForm = { name: "", phone: "", password: "", role: "CUSTOMER", isActive: true }
+const USERS_PATH = "/api/admin/users"
 const roleLabel: Record<Role, string> = { CUSTOMER: "Customer", STAFF: "Staff", ADMIN: "Admin" }
 
 function normalizeName(value: string) {
@@ -72,16 +73,22 @@ export default function UserTable() {
 
   async function loadUsers(force = false) {
     try {
-      setUsers(await apiGet("/api/admin/users", undefined, { force }))
+      setUsers(await apiGet(USERS_PATH, undefined, { force }))
     } catch (error: any) {
       setMessage(error.message)
     }
   }
 
   useEffect(() => {
-    loadUsers()
-    const unsubscribe = subscribeRealtime("admin", () => {
-      if (document.visibilityState === "visible") loadUsers(true)
+    const cached = apiGetCached(USERS_PATH)
+    if (cached) {
+      setUsers(cached)
+      void loadUsers(true)
+    } else {
+      void loadUsers()
+    }
+    const unsubscribe = subscribeRealtime("admin-users", () => {
+      if (document.visibilityState === "visible") loadUsers(false)
     })
     return unsubscribe
   }, [])

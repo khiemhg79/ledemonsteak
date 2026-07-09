@@ -55,7 +55,7 @@ export default function OrderPage() {
   useEffect(() => {
     loadOrders()
     const unsubscribe = subscribeRealtime("customer", () => {
-      if (document.visibilityState === "visible") loadOrders(false, true, true)
+      if (document.visibilityState === "visible") loadOrders(false, false, true)
     })
     if (user) apiGet("/api/promotions", token ?? undefined, { timeoutMs: 60_000 }).then(setPromos).catch(() => setPromos([]))
     else setPromos([])

@@ -1,10 +1,10 @@
 "use client"
 
 import Link from "next/link"
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import CustomerBottomNav from "@/components/layout/CustomerBottomNav"
 import DishCard from "@/components/menu/DishCard"
-import { apiGet, apiPost } from "@/lib/api"
+import { apiGet, apiGetCached, apiPost } from "@/lib/api"
 import { subscribeRealtime } from "@/lib/realtime"
 import { useAuth } from "@/store/auth"
 import { useCart } from "@/store/cart"
@@ -13,6 +13,8 @@ type Category = { id: string; name: string }
 type Dish = { id: string; name: string; price: number; description?: string | null; image?: string | null; category?: Category }
 type Combo = { id: string; name: string; price: number; description?: string | null; image?: string | null; items?: any[] }
 type RestaurantTable = { id: string; number: string; capacity: number; status: string }
+const MENU_PATH = "/api/menu"
+const TABLES_PATH = "/api/public/tables"
 
 function normalizeSearch(value: string) {
   return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/g, "d").replace(/Đ/g, "D").trim().toLocaleLowerCase("vi-VN")
@@ -63,6 +65,7 @@ export default function HomePage() {
   const user = useAuth((s) => s.user)
   const logout = useAuth((s) => s.logout)
   const hydrateAuth = useAuth((s) => s.hydrate)
+  const validatedQrRef = useRef<string | null>(null)
 
   useEffect(() => {
     hydrateAuth()
@@ -75,7 +78,7 @@ export default function HomePage() {
   const loadMenuAndTables = useCallback((force = false, silent = false) => {
     if (!silent) setLoading(true)
     setError("")
-    Promise.all([apiGet("/api/menu", undefined, { force }), apiGet("/api/public/tables", undefined, { force })])
+    Promise.all([apiGet(MENU_PATH, undefined, { force }), apiGet(TABLES_PATH, undefined, { force })])
       .then(async ([menu, tableList]) => {
         setCategories(menu.categories ?? [])
         setDishes(menu.dishes ?? [])
@@ -88,20 +91,29 @@ export default function HomePage() {
 
         if (candidateTableId) {
           if (!candidateQrToken || !availableTables.some((table: RestaurantTable) => table.id === candidateTableId)) {
+            validatedQrRef.current = null
             clearTableId()
             setTableError("Mã QR bàn không hợp lệ. Vui lòng quét lại mã tại bàn.")
             return
           }
 
-          try {
-            await apiPost("/api/public/qr/validate", { tableId: candidateTableId, qrToken: candidateQrToken })
-            if (tableId !== candidateTableId || qrToken !== candidateQrToken) setTableId(candidateTableId, candidateQrToken)
+          const validationKey = `${candidateTableId}:${candidateQrToken}`
+          if (validatedQrRef.current !== validationKey) {
+            try {
+              await apiPost("/api/public/qr/validate", { tableId: candidateTableId, qrToken: candidateQrToken })
+              validatedQrRef.current = validationKey
+              if (tableId !== candidateTableId || qrToken !== candidateQrToken) setTableId(candidateTableId, candidateQrToken)
+              setTableError("")
+            } catch (error: any) {
+              validatedQrRef.current = null
+              clearTableId()
+              setTableError(error.message || "Mã QR không hợp lệ hoặc đã hết hạn.")
+            }
+          } else {
             setTableError("")
-          } catch (error: any) {
-            clearTableId()
-            setTableError(error.message || "Mã QR không hợp lệ hoặc đã hết hạn.")
           }
         } else if (tableId && !availableTables.some((table: RestaurantTable) => table.id === tableId)) {
+          validatedQrRef.current = null
           clearTableId()
           setTableError("Bàn đã lưu không còn hoạt động. Vui lòng quét lại mã QR tại bàn.")
         } else {
@@ -113,9 +125,20 @@ export default function HomePage() {
   }, [qrTableId, scannedQrToken, tableId, qrToken, setTableId, clearTableId])
 
   useEffect(() => {
-    loadMenuAndTables()
+    const cachedMenu = apiGetCached(MENU_PATH)
+    const cachedTables = apiGetCached(TABLES_PATH)
+    if (cachedMenu) {
+      setCategories(cachedMenu.categories ?? [])
+      setDishes(cachedMenu.dishes ?? [])
+      setCombos(cachedMenu.combos ?? [])
+      if (cachedTables) setTables(cachedTables ?? [])
+      setLoading(false)
+      void loadMenuAndTables(true, true)
+    } else {
+      loadMenuAndTables()
+    }
     const refresh = () => {
-      if (document.visibilityState === "visible") loadMenuAndTables(true, true)
+      if (document.visibilityState === "visible") loadMenuAndTables(false, true)
     }
     const unsubscribe = subscribeRealtime("customer", refresh)
     return () => {

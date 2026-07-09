@@ -121,8 +121,25 @@ model Table {
   updatedAt DateTime  @updatedAt
   orders    Order[]
   invoices  Invoice[]
+  sessions  TableSession[]
 
   @@map("tables")
+}
+
+model TableSession {
+  id        String    @id @default(cuid())
+  tableId   String
+  tokenHash String    @unique
+  status    String    @default("ACTIVE")
+  expiresAt DateTime
+  endedAt   DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  table     Table     @relation(fields: [tableId], references: [id], onDelete: Cascade)
+  orders    Order[]
+
+  @@index([tableId, status, expiresAt])
+  @@map("tablesessions")
 }
 
 model Category {
@@ -191,6 +208,7 @@ model Order {
   id            String        @id @default(cuid())
   orderNumber   Int           @unique @default(autoincrement())
   tableId       String?
+  tableSessionId String?
   userId        String?
   customerId    String?
   status        String        @default("PENDING") @map("orderStatus")
@@ -204,12 +222,14 @@ model Order {
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
   table         Table?        @relation(fields: [tableId], references: [id])
+  tableSession  TableSession? @relation(fields: [tableSessionId], references: [id], onDelete: SetNull)
   user          User?         @relation(fields: [userId], references: [id])
   customer      Customer?     @relation(fields: [customerId], references: [id])
   invoice       Invoice?
   payments      Payment[]
   orderDetails  OrderDetail[]
 
+  @@index([tableSessionId])
   @@map("orders")
 }
 

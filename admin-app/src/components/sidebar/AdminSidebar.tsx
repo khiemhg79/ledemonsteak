@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
+import { apiGet } from "@/lib/api"
 
 const links = [
   { href: "/dashboard", label: "Tổng quan", icon: "⌘" },
@@ -10,6 +11,14 @@ const links = [
   { href: "/promotions", label: "Khuyến mãi", icon: "▣" },
   { href: "/tables", label: "Bàn", icon: "▦" },
 ]
+
+const preloadApiByRoute: Record<string, string> = {
+  "/dashboard": "/api/admin/reports",
+  "/users": "/api/admin/users",
+  "/menu": "/api/menu?compact=1",
+  "/promotions": "/api/promotions",
+  "/tables": "/api/tables",
+}
 
 export default function AdminSidebar() {
   const path = usePathname()
@@ -20,7 +29,15 @@ export default function AdminSidebar() {
         {links.map((link) => {
           const active = path === link.href || (link.href === "/dashboard" && path === "/")
           return (
-            <Link key={link.href} href={link.href} className={`flex items-center justify-between rounded-xl px-4 py-3 text-sm font-semibold transition ${active ? "bg-[#1E2B44] text-white" : "text-[#D4D9E4] hover:bg-[#0A1020]"}`}>
+            <Link
+              key={link.href}
+              href={link.href}
+              className={`flex items-center justify-between rounded-xl px-4 py-3 text-sm font-semibold transition ${active ? "bg-[#1E2B44] text-white" : "text-[#D4D9E4] hover:bg-[#0A1020]"}`}
+              onMouseEnter={() => {
+                const apiPath = preloadApiByRoute[link.href]
+                if (apiPath) void apiGet(apiPath).catch(() => undefined)
+              }}
+            >
               <span className="flex items-center gap-3"><span className="w-4 text-center text-[#C7D2E5]">{link.icon}</span>{link.label}</span>
               {active && <span className="text-[#93A4C0]">›</span>}
             </Link>

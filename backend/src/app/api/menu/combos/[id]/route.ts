@@ -59,6 +59,22 @@ export async function OPTIONS() {
   return optionsResponse()
 }
 
+export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+  const denied = adminOnly(req)
+  if (denied) return denied
+
+  const combo = await prisma.combo.findUnique({
+    where: { id: params.id },
+    include: {
+      items: {
+        include: { item: { select: { id: true, name: true } } },
+      },
+    },
+  })
+  if (!combo) return NextResponse.json({ error: "KhÃ´ng tÃ¬m tháº¥y combo." }, { status: 404, headers: corsHeaders() })
+  return NextResponse.json(combo, { headers: corsHeaders() })
+}
+
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const denied = adminOnly(req)
   if (denied) return denied
@@ -86,7 +102,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       },
       include: {
         items: {
-          include: { item: true },
+          include: { item: { select: { id: true, name: true } } },
         },
       },
     })

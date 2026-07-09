@@ -175,6 +175,7 @@ export async function GET(req: NextRequest) {
     const tableId = req.nextUrl.searchParams.get("tableId")
     const status = req.nextUrl.searchParams.get("status")
     const staffView = req.nextUrl.searchParams.get("view") === "staff"
+    const summary = staffView && req.nextUrl.searchParams.get("summary") === "1"
     if (staffView) {
       const auth = authorize(req, ["STAFF", "ADMIN"])
       if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status, headers: corsHeaders() })
@@ -205,6 +206,28 @@ export async function GET(req: NextRequest) {
       updatedAt: true,
       table: { select: { id: true, number: true, status: true } },
     } as const
+
+    if (summary) {
+      const orders = await prisma.order.findMany({
+        where,
+        select: {
+          id: true,
+          orderNumber: true,
+          tableId: true,
+          status: true,
+          totalAmount: true,
+          discount: true,
+          finalAmount: true,
+          promoCode: true,
+          createdAt: true,
+          updatedAt: true,
+          table: { select: { id: true, number: true, status: true } },
+        },
+        orderBy: { createdAt: "asc" },
+        take: 120,
+      })
+      return NextResponse.json(orders.map((order) => ({ ...order, items: [] })), { headers: corsHeaders() })
+    }
 
     try {
       const orders = await prisma.order.findMany({

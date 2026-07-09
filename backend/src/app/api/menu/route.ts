@@ -62,6 +62,51 @@ export async function OPTIONS() {
 
 export async function GET(req: NextRequest) {
   const admin = isAdminRequest(req)
+  const compact = admin && req.nextUrl.searchParams.get("compact") === "1"
+  if (compact) {
+    const [dishes, combos, categories] = await Promise.all([
+      prisma.item.findMany({
+        where: {},
+        select: {
+          id: true,
+          name: true,
+          price: true,
+          categoryId: true,
+          isActive: true,
+          category: { select: { id: true, name: true, sortOrder: true, isActive: true } },
+        },
+        orderBy: [{ category: { sortOrder: "asc" } }, { name: "asc" }],
+      }),
+      prisma.combo.findMany({
+        where: {},
+        select: {
+          id: true,
+          name: true,
+          price: true,
+          isActive: true,
+          items: {
+            select: {
+              id: true,
+              itemId: true,
+              quantity: true,
+              item: { select: { id: true, name: true } },
+            },
+          },
+        },
+        orderBy: { name: "asc" },
+      }),
+      prisma.category.findMany({
+        where: {},
+        select: { id: true, name: true, desc: true, sortOrder: true, isActive: true },
+        orderBy: { sortOrder: "asc" },
+      }),
+    ])
+    return NextResponse.json(
+      { dishes, combos, categories },
+      { headers: { ...corsHeaders(), "Vary": "Authorization", "Cache-Control": "private, no-store" } },
+    )
+  }
+
   const [dishes, combos, categories] = await Promise.all([
     prisma.item.findMany({ where: admin ? {} : { isActive: true }, include: { category: true }, orderBy: [{ category: { sortOrder: "asc" } }, { name: "asc" }] }),
     prisma.combo.findMany({
@@ -69,7 +114,7 @@ export async function GET(req: NextRequest) {
       include: {
         items: {
           include: {
-            item: true,
+            item: { select: { id: true, name: true } },
           },
         },
       },

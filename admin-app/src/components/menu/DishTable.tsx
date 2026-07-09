@@ -1,14 +1,14 @@
 "use client"
 
 import { Fragment, FormEvent, useEffect, useMemo, useState } from "react"
-import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/api"
+import { apiDelete, apiGet, apiGetCached, apiPatch, apiPost } from "@/lib/api"
 import { subscribeRealtime } from "@/lib/realtime"
 import Modal from "@/components/ui/Modal"
 
 type Tab = "dishes" | "combos" | "categories"
 type Category = { id: string; name: string; desc?: string | null; sortOrder: number; isActive: boolean; count?: number }
 type Dish = { id: string; name: string; price: number; description?: string | null; image?: string | null; categoryId: string; category?: Category; isActive: boolean }
-type ComboItem = { id?: string; itemId: string; quantity: number; item?: Dish }
+type ComboItem = { id?: string; itemId: string; quantity: number; item?: Pick<Dish, "id" | "name"> | null }
 type Combo = { id: string; name: string; price: number; description?: string | null; image?: string | null; isActive: boolean; items?: ComboItem[] }
 
 type DishForm = { name: string; price: string; description: string; image: string; categoryId: string; isActive: boolean }
@@ -21,6 +21,7 @@ const tabs: { id: Tab; label: string }[] = [
   { id: "categories", label: "Danh mục" },
 ]
 
+const MENU_LIST_PATH = "/api/menu?compact=1"
 const initialDishForm: DishForm = { name: "", price: "", description: "", image: "", categoryId: "", isActive: true }
 
 function money(value: number) {
@@ -52,22 +53,33 @@ export default function DishTable() {
   const [comboPick, setComboPick] = useState({ itemId: "", quantity: "1" })
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState("")
   const [touched, setTouched] = useState(false)
   const [form, setForm] = useState<DishForm | ComboForm | CategoryForm>(initialDishForm)
 
-  async function loadMenu(force = false) {
+  async function loadMenu(force = false, silent = false) {
+    if (!silent) setLoading(true)
     try {
-      setData(await apiGet("/api/menu", undefined, { force }))
+      setData(await apiGet(MENU_LIST_PATH, undefined, { force }))
     } catch (error: any) {
       setMessage(error.message)
+    } finally {
+      if (!silent) setLoading(false)
     }
   }
 
   useEffect(() => {
-    loadMenu()
-    const unsubscribe = subscribeRealtime("admin", () => {
-      if (document.visibilityState === "visible") loadMenu(true)
+    const cached = apiGetCached(MENU_LIST_PATH)
+    if (cached) {
+      setData(cached)
+      setLoading(false)
+      void loadMenu(true, true)
+    } else {
+      void loadMenu()
+    }
+    const unsubscribe = subscribeRealtime("admin-menu", () => {
+      if (document.visibilityState === "visible") loadMenu(false, true)
     })
     return unsubscribe
   }, [])
@@ -135,26 +147,46 @@ export default function DishTable() {
     setOpen(true)
   }
 
-  function showEdit(row: Dish | Combo | Category) {
-    setEditing(row)
+  async function showEdit(row: Dish | Combo | Category) {
     setTouched(false)
     setMessage("")
     if (tab === "dishes") {
-      const dish = row as Dish
-      setForm({ name: dish.name, price: String(dish.price), description: dish.description ?? "", image: dish.image ?? "", categoryId: dish.categoryId, isActive: dish.isActive })
+      setBusy(true)
+      try {
+        const dish = await apiGet(`/api/menu/${row.id}`, undefined, { force: true }) as Dish
+        setEditing(dish)
+        setForm({ name: dish.name, price: String(dish.price), description: dish.description ?? "", image: dish.image ?? "", categoryId: dish.categoryId, isActive: dish.isActive })
+        setOpen(true)
+      } catch (error: any) {
+        setMessage(error.message)
+      } finally {
+        setBusy(false)
+      }
+      return
     } else if (tab === "combos") {
-      const combo = row as Combo
-      setForm({
-        name: combo.name,
-        price: String(combo.price),
-        description: combo.description ?? "",
-        image: combo.image ?? "",
-        isActive: combo.isActive,
-        items: (combo.items ?? []).map((comboItem) => ({ itemId: comboItem.itemId, quantity: comboItem.quantity, item: comboItem.item })),
-      })
-      setComboPick({ itemId: activeDishes[0]?.id ?? "", quantity: "1" })
+      setBusy(true)
+      try {
+        const combo = await apiGet(`/api/menu/combos/${row.id}`, undefined, { force: true }) as Combo
+        setEditing(combo)
+        setForm({
+          name: combo.name,
+          price: String(combo.price),
+          description: combo.description ?? "",
+          image: combo.image ?? "",
+          isActive: combo.isActive,
+          items: (combo.items ?? []).map((comboItem) => ({ itemId: comboItem.itemId, quantity: comboItem.quantity, item: comboItem.item })),
+        })
+        setComboPick({ itemId: activeDishes[0]?.id ?? "", quantity: "1" })
+        setOpen(true)
+      } catch (error: any) {
+        setMessage(error.message)
+      } finally {
+        setBusy(false)
+      }
+      return
     } else {
       const category = row as Category
+      setEditing(category)
       setForm({ name: category.name, desc: category.desc ?? "", sortOrder: String(category.sortOrder ?? 0), isActive: category.isActive })
     }
     setOpen(true)
@@ -304,7 +336,7 @@ export default function DishTable() {
           </thead>
           <tbody className="text-[#E9F2FF]">
             {rows.length === 0 ? (
-              <tr><td className="p-6 text-center text-[#9AA8BF]" colSpan={6}>Không có dữ liệu phù hợp.</td></tr>
+              <tr><td className="p-6 text-center text-[#9AA8BF]" colSpan={6}>{loading ? "Đang tải dữ liệu..." : "Không có dữ liệu phù hợp."}</td></tr>
             ) : rows.map((row: any, index: number) => (
               <Fragment key={row.id}>
                 <tr key={row.id} className="border-t border-[#132033]">
